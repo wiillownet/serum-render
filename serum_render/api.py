@@ -103,6 +103,70 @@ class Renderer:
         return self._host.render(job)
 
 
+class ParallelRenderer:
+    """
+    Multi-process renderer for bulk use. Mixed-format batches are fine —
+    format is auto-detected per path. Audio ships back from workers to
+    the main process (~700 KB per 2s stereo render); for very large
+    libraries iterate and spill to disk instead of holding the dict.
+    """
+
+    def __init__(self, config: RenderConfig, workers: int = -1):
+        self.config = config
+        self.workers = workers
+        self._midi_duration: float | None = None
+        self._entered = False
+
+    def __enter__(self) -> "ParallelRenderer":
+        self._midi_duration = _validate_entry(self.config)
+        self._entered = True
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        # Executor is owned by loky's reusable cache; leave it warm so
+        # the next ParallelRenderer in this process reuses the workers.
+        self._entered = False
+
+    def _build_jobs(self, preset_paths: list[str | Path]) -> list[Job]:
+        if not self._entered:
+            raise RuntimeError(
+                "ParallelRenderer must be used as a context manager"
+            )
+        # Coverage-check the whole batch first so the error names every
+        # missing plugin path in one pass, before any worker boots.
+        _check_format_coverage(
+            self.config, [format_for_path(Path(p)) for p in preset_paths]
+        )
+        return [
+            _build_job(self.config, p, self._midi_duration) for p in preset_paths
+        ]
+
+    def iter_batch(
+        self, preset_paths: list[str | Path]
+    ) -> Iterator[tuple[str, "np.ndarray"]]:
+        """Yield `(preset_path, audio)` as each job completes (unordered).
+        Failed jobs are logged by the worker and skipped here."""
+        from .pool import iter_jobs
+
+        jobs = self._build_jobs(preset_paths)
+        cfg = self.config
+        for result in iter_jobs(
+            jobs,
+            self.workers,
+            str(cfg.serum1_plugin_path) if cfg.serum1_plugin_path else None,
+            str(cfg.serum2_plugin_path) if cfg.serum2_plugin_path else None,
+            cfg.sample_rate,
+        ):
+            if result["status"] == "ok":
+                yield result["path"], result["audio"]
+
+    def render_batch(
+        self, preset_paths: list[str | Path]
+    ) -> dict[str, "np.ndarray"]:
+        """Render all presets and return a dict mapping path -> audio."""
+        return dict(self.iter_batch(preset_paths))
+
+
 def render_preset(preset_path: str | Path, config: RenderConfig) -> "np.ndarray":
     """
     One-off render. Spins up a fresh EngineHost, renders, returns audio.
