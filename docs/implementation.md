@@ -79,8 +79,7 @@ it across processes.
 
 ## Job contract
 
-`Job` (`serum_render/jobs.py`) is a frozen dataclass — the typed
-replacement for vst-render's documented job-dict seam. Invariants are
+`Job` (`serum_render/jobs.py`) is a frozen dataclass. Invariants are
 enforced in `__post_init__` (midi_path requires midi_duration).
 `preset_path` / `midi_path` / `output_path` are absolute path strings.
 `output_path=None` means "return the audio"; set means "write to disk
@@ -135,7 +134,7 @@ re-run them after upgrading DawDreamer. `scripts/probe_determinism.py`
 measures the per-job reset strategies against the cold-render reference
 (methodology + results in docs/decisions.md).
 
-## Verified findings inherited from vst-render
+## Verified architectural findings
 
 1. `load_preset()` on a loaded graph updates in place — no graph rebuild
    between renders.

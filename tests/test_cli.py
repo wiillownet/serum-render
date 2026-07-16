@@ -404,9 +404,9 @@ def test_dry_run_prints_plan_without_rendering(fake_env, no_defaults):
 def test_dry_run_with_relative_presets_dir_resolves_subpath(
     tmp_path, monkeypatch, no_defaults
 ):
-    """Regression pin from vst-render: a relative PRESETS arg must still
-    produce a non-empty {subpath} — the CLI must resolve presets_root
-    before composing filenames, or relative_to() fails silently."""
+    """Regression pin: a relative PRESETS arg must still produce a
+    non-empty {subpath} — the CLI must resolve presets_root before
+    composing filenames, or relative_to() fails silently."""
     plugin = tmp_path / "Serum.vst"
     plugin.write_bytes(b"")
     (tmp_path / "presets" / "Leads").mkdir(parents=True)

@@ -31,7 +31,7 @@ class _FormatEngine:
     Each format gets its OWN engine. Never put two synths into one
     engine's graph: `load_graph` with multiple orphan source processors
     routes only the last one to `get_audio()` and silently discards the
-    rest (vst-render audit-log 2026-05-20).
+    rest (verified against real plugins, 2026-05-20).
     """
     engine: object
     synth: object
@@ -45,7 +45,7 @@ class _FormatEngine:
 class EngineHost:
     """Builds one engine per supplied format, once, and renders Jobs.
 
-    Rules inherited from vst-render (see CLAUDE.md "Critical constraints"):
+    Rules verified against real plugins (see docs/implementation.md):
     - dawdreamer is imported here, first, before numpy.
     - Engines are built once per process; `load_preset` / `load_state`
       hot-swap presets in place. Never rebuild engines per job.
