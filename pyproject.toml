@@ -18,7 +18,7 @@ dependencies = [
     "numpy",
     # Pinned to a commit SHA so an upstream change can't silently propagate.
     # Move to a PyPI version pin once the package is published.
-    "serum2-preset-loader @ git+https://github.com/wiillownet/serum-2-preset-loader@1a240f093cabd8fd8e888154d32b884556672897",
+    "serum2-preset-loader @ git+https://github.com/wiillownet/serum-2-preset-loader@c4347c8563ae19fc880e19228ef338d352ed58db",
 ]
 
 [tool.hatch.metadata]
