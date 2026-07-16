@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "serum-render"
+version = "0.1.0"
+description = "Batch-render Serum 1 (.fxp) and Serum 2 (.SerumPreset) presets to audio files via DawDreamer."
+requires-python = ">=3.11,<3.13"
+license = "GPL-3.0-or-later"
+dependencies = [
+    "dawdreamer",
+    "soundfile",
+    "typer",
+    "rich",
+    "loky",
+    "mido",
+    "numpy",
+    # Pinned to a commit SHA so an upstream change can't silently propagate.
+    # Move to a PyPI version pin once the package is published.
+    "serum2-preset-loader @ git+https://github.com/wiillownet/serum-2-preset-loader@1a240f093cabd8fd8e888154d32b884556672897",
+]
+
+[tool.hatch.metadata]
+# Required so hatchling accepts the git+https reference for
+# `serum2-preset-loader`. Remove once that package is on PyPI and the
+# dep can use a normal version pin.
+allow-direct-references = true
+
+[project.scripts]
+serum-render = "serum_render.cli:app"
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+markers = ["slow: integration tests that require a plugin to be installed"]
