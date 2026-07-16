@@ -34,12 +34,6 @@ A preset named `CON.fxp` (or `PRN`, `NUL`, `AUX`, `COM1`–`COM9`, `LPT1`–`LPT
 
 ---
 
-## `serum2-preset-loader` is pinned to a git commit, not a PyPI release
-
-`pyproject.toml` pins it via `git+https://...@<40-char-sha>` and sets `[tool.hatch.metadata] allow-direct-references = true`. Downstream packagers re-declaring this dependency need the same opt-in. The pin moves to a PyPI version once upstream ships one.
-
----
-
 ## Serum 2 cold-start audio anomaly is absorbed by a warmup render
 
 Serum 2 lazy-loads sample data on first render; the cold render comes out at ~10× steady-state level. `EngineHost` issues a 0.1-second warmup render per synth at construction, absorbing the anomaly. Do not remove the warmup — this is a regression guard, not dead code.
