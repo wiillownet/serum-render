@@ -6,7 +6,7 @@ One render core shared by the sequential, parallel, and CLI paths, typed jobs, s
 
 ## How it works
 
-- Each worker process builds **one DawDreamer engine per preset format**, once. Jobs hot-swap presets on the matching engine (`load_preset` for `.fxp`; `convert → load_state` for `.SerumPreset`, decoded by [`serum2-preset-loader`](https://github.com/wiillownet/serum-2-preset-loader)). The audio graph is never rebuilt mid-batch.
+- Each worker process builds **one DawDreamer engine per preset format**, once. Jobs hot-swap presets on the matching engine (`load_preset` for `.fxp`; `convert → load_state` for `.SerumPreset`, decoded by [`serum2-preset-loader`](https://github.com/wiillownet/serum2-preset-loader)). The audio graph is never rebuilt mid-batch.
 - A [loky](https://github.com/joblib/loky) pool fans jobs out across CPU cores; mixed-format batches dispatch per preset by file suffix.
 - A warmup render at engine build absorbs Serum 2's first-render lazy-load anomaly.
 
