@@ -1,0 +1,98 @@
+{
+  "serum1": {
+    "n_presets": 30,
+    "ceiling": {
+      "max_abs": 0.0,
+      "bit_identical": true,
+      "per_preset": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "baseline": {
+      "peak_rss_mb": 283.2,
+      "bit_identical": 1,
+      "within_ceiling": 1,
+      "audible_ge_0.01": 28,
+      "p50": 0.7828304767608643,
+      "p90": 1.458086609840393,
+      "max": 1.5033400058746338
+    },
+    "drain": {
+      "peak_rss_mb": 283.6,
+      "bit_identical": 1,
+      "within_ceiling": 1,
+      "audible_ge_0.01": 28,
+      "p50": 0.7828304767608643,
+      "p90": 1.458086609840393,
+      "max": 1.5733082294464111
+    },
+    "warmup": {
+      "peak_rss_mb": 281.9,
+      "bit_identical": 0,
+      "within_ceiling": 0,
+      "audible_ge_0.01": 29,
+      "p50": 0.7719407081604004,
+      "p90": 1.241441249847412,
+      "max": 1.2502632141113281
+    },
+    "reload": {
+      "peak_rss_mb": 290.1,
+      "bit_identical": 4,
+      "within_ceiling": 4,
+      "audible_ge_0.01": 26,
+      "p50": 0.7660495042800903,
+      "p90": 1.1230311393737793,
+      "max": 1.4171278476715088
+    }
+  },
+  "serum2": {
+    "n_presets": 30,
+    "ceiling": {
+      "max_abs": 0.0,
+      "bit_identical": true,
+      "per_preset": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "baseline": {
+      "peak_rss_mb": 2417.7,
+      "bit_identical": 1,
+      "within_ceiling": 1,
+      "audible_ge_0.01": 28,
+      "p50": 0.3390251696109772,
+      "p90": 1.4005800485610962,
+      "max": 4.046144962310791
+    },
+    "drain": {
+      "peak_rss_mb": 2200.0,
+      "bit_identical": 1,
+      "within_ceiling": 1,
+      "audible_ge_0.01": 28,
+      "p50": 0.3198849856853485,
+      "p90": 1.4005800485610962,
+      "max": 4.046144962310791
+    },
+    "warmup": {
+      "peak_rss_mb": 2372.8,
+      "bit_identical": 0,
+      "within_ceiling": 0,
+      "audible_ge_0.01": 29,
+      "p50": 0.42634117603302,
+      "p90": 0.7415500283241272,
+      "max": 2.890894889831543
+    },
+    "reload": {
+      "peak_rss_mb": 2125.7,
+      "bit_identical": 30,
+      "within_ceiling": 30,
+      "audible_ge_0.01": 0,
+      "p50": 0.0,
+      "p90": 0.0,
+      "max": 0.0
+    }
+  }
+}

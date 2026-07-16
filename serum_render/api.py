@@ -82,24 +82,47 @@ class Renderer:
         self.config = config
         self._host: EngineHost | None = None
         self._midi_duration: float | None = None
+        self._entered = False
 
     def __enter__(self) -> "Renderer":
         self._midi_duration = _validate_entry(self.config)
-        self._host = EngineHost(
-            self.config.serum1_plugin_path,
-            self.config.serum2_plugin_path,
-            self.config.sample_rate,
-        )
+        if not self.config.deterministic:
+            # Deterministic mode never builds an in-process engine —
+            # every render runs in its own single-use process.
+            self._host = EngineHost(
+                self.config.serum1_plugin_path,
+                self.config.serum2_plugin_path,
+                self.config.sample_rate,
+            )
+        self._entered = True
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         # DawDreamer has no explicit teardown — drop the ref for GC.
         self._host = None
+        self._entered = False
 
     def render(self, preset_path: str | Path) -> "np.ndarray":
-        if self._host is None:
+        if not getattr(self, "_entered", False):
             raise RuntimeError("Renderer must be used as a context manager")
         job = _build_job(self.config, preset_path, self._midi_duration)
+        if self.config.deterministic:
+            from .pool import render_isolated
+
+            cfg = self.config
+            result = render_isolated(
+                job,
+                str(cfg.serum1_plugin_path) if cfg.serum1_plugin_path else None,
+                str(cfg.serum2_plugin_path) if cfg.serum2_plugin_path else None,
+                cfg.sample_rate,
+                keep_audio=True,
+            )
+            if result["status"] != "ok":
+                raise RuntimeError(
+                    f"Deterministic render failed for {preset_path}: "
+                    f"{result.get('error')}"
+                )
+            return result["audio"]
         return self._host.render(job)
 
 
@@ -146,17 +169,20 @@ class ParallelRenderer:
     ) -> Iterator[tuple[str, "np.ndarray"]]:
         """Yield `(preset_path, audio)` as each job completes (unordered).
         Failed jobs are logged by the worker and skipped here."""
-        from .pool import iter_jobs
+        from .pool import iter_jobs, iter_jobs_isolated
 
         jobs = self._build_jobs(preset_paths)
         cfg = self.config
-        for result in iter_jobs(
-            jobs,
-            self.workers,
-            str(cfg.serum1_plugin_path) if cfg.serum1_plugin_path else None,
-            str(cfg.serum2_plugin_path) if cfg.serum2_plugin_path else None,
-            cfg.sample_rate,
-        ):
+        serum1 = str(cfg.serum1_plugin_path) if cfg.serum1_plugin_path else None
+        serum2 = str(cfg.serum2_plugin_path) if cfg.serum2_plugin_path else None
+        if cfg.deterministic:
+            results = iter_jobs_isolated(
+                jobs, self.workers, serum1, serum2, cfg.sample_rate,
+                keep_audio=True,
+            )
+        else:
+            results = iter_jobs(jobs, self.workers, serum1, serum2, cfg.sample_rate)
+        for result in results:
             if result["status"] == "ok":
                 yield result["path"], result["audio"]
 

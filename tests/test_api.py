@@ -140,6 +140,7 @@ def test_render_checks_coverage_before_engine(tmp_path):
     cfg = RenderConfig(serum2_plugin_path=_fake_plugin(tmp_path, "Serum2.vst3"))
     r = Renderer(cfg)
     # Simulate an entered renderer without loading a real plugin.
+    r._entered = True
     r._host = object()
     with pytest.raises(ValueError, match="serum1_plugin_path"):
         r.render(tmp_path / "lead.fxp")

@@ -80,6 +80,12 @@ def render(
     midi: Optional[Path] = typer.Option(None, "--midi", help="Path to a .mid file (overrides --note)."),
     workers: int = typer.Option(-1, "--workers", help="Parallel workers. -1 = cpu_count - 1."),
     skip_existing: bool = typer.Option(False, "--skip-existing", help="Skip if output file already exists."),
+    deterministic: bool = typer.Option(
+        False, "--deterministic",
+        help="Render every preset in a fresh single-use process so batch "
+             "output is bit-reproducible. Slower: one plugin load per "
+             "preset instead of per worker.",
+    ),
     no_recurse: bool = typer.Option(False, "--no-recurse", help="Do not recurse into subdirectories."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print presets that would render and exit."),
     verbose: bool = typer.Option(False, "--verbose", help="Per-preset status logging."),
@@ -227,7 +233,14 @@ def render(
     )
 
     results: list[dict] = []
-    result_iter = iter_jobs(jobs, n_workers, serum1_str, serum2_str, sample_rate)
+    if deterministic:
+        from .pool import iter_jobs_isolated
+
+        result_iter = iter_jobs_isolated(
+            jobs, n_workers, serum1_str, serum2_str, sample_rate
+        )
+    else:
+        result_iter = iter_jobs(jobs, n_workers, serum1_str, serum2_str, sample_rate)
 
     # In verbose mode, per-preset DEBUG logs replace the progress bar so
     # the two don't fight for the terminal.

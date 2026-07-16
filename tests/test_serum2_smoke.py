@@ -103,6 +103,38 @@ def test_sequential_renderer_mixed(
 
 
 @pytest.mark.slow
+def test_deterministic_batches_are_bit_identical(
+    serum1_plugin_path,
+    serum2_plugin_path,
+    serum1_preset_files,
+    serum2_preset_files,
+    tmp_path,
+):
+    """The --deterministic guarantee: the same mixed batch rendered twice
+    (different orders) produces bit-identical audio per preset. The
+    default warm path does NOT hold this property (97% of presets differ),
+    so this is a real assertion, not a tautology."""
+    config = RenderConfig(
+        serum1_plugin_path=serum1_plugin_path,
+        serum2_plugin_path=serum2_plugin_path,
+        duration=0.5,
+        tail=0.5,
+        deterministic=True,
+    )
+    batch = serum1_preset_files + serum2_preset_files
+    with ParallelRenderer(config, workers=2) as renderer:
+        first = renderer.render_batch(batch)
+        second = renderer.render_batch(list(reversed(batch)))
+
+    assert len(first) == len(batch)
+    for path in first:
+        a, b = first[path], second[path]
+        assert a.shape == b.shape, f"{path}: shape changed between runs"
+        assert (a == b).all(), f"{path}: not bit-identical across runs"
+        assert np.max(np.abs(a)) > SILENCE_EPS, f"{path}: silent output"
+
+
+@pytest.mark.slow
 def test_cli_end_to_end_mixed(
     serum1_plugin_path,
     serum2_plugin_path,

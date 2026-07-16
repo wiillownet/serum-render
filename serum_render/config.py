@@ -58,6 +58,11 @@ class RenderConfig:
     duration: float = 1.0
     tail: float = 1.0
     midi_path: str | Path | None = None
+    # Render every preset in a fresh single-use process, making batch
+    # output bit-reproducible. Costs a plugin load per preset instead of
+    # per worker. In-process resets don't work for Serum 1 (state
+    # survives even a full engine reload); see docs/decisions.md.
+    deterministic: bool = False
 
     def __post_init__(self) -> None:
         # Cheap shape/range checks only — no disk I/O. Path existence is

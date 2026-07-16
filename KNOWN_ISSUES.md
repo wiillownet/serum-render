@@ -85,4 +85,4 @@ loky flags the entire executor broken when any worker dies unexpectedly; every r
 
 Serum 1 and Serum 2 retain internal DSP state (LFO phase, envelope residue, lazy-loaded sample buffers) that `load_preset` / `load_state` does not fully reset, so a preset rendered mid-batch differs from the same preset rendered alone. Measured in vst-render across 1491 factory presets: 97% show audible (max_abs ≥ 0.01) warm-vs-cold variation.
 
-serum-render addresses this with a per-job reset mode — see the determinism section in the README for the flag, the strategy chosen per format, and the measured results (`docs/decisions.md` has the probe data).
+serum-render addresses this with `--deterministic`, which renders every preset in a fresh single-use process — bit-identical across runs and render orders, verified against real Serum 1 + 2. See the README's reproducibility section and `docs/decisions.md` for the probe data (including why in-process resets are not enough for Serum 1).
