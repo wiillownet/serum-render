@@ -31,10 +31,8 @@ jobs:
         run: pytest tests/ --ignore=tests/test_serum1_smoke.py --ignore=tests/test_serum2_smoke.py -q
 
   git-install:
-    # Smokes the documented `pip install git+...` flow end-to-end.
-    # Catches packaging regressions that the editable install above can hide,
-    # most notably the `[tool.hatch.metadata] allow-direct-references = true`
-    # opt-in that the serum2-preset-loader git pin depends on.
+    # Smokes a non-editable install end-to-end. Catches packaging
+    # regressions that the editable install above can hide.
     # Push-only: PR head SHAs aren't reachable at the canonical URL.
     if: github.event_name == 'push'
     runs-on: macos-latest

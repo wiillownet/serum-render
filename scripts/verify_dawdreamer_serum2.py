@@ -2,8 +2,8 @@
 Verify DawDreamer + Serum 2 assumptions before extending serum-render to
 support .SerumPreset files alongside .fxp.
 
-Three assumptions under test (all load-bearing for the planned worker
-architecture in /Users/willow/.claude/plans/enumerated-swinging-book.md):
+Three assumptions under test (all load-bearing for the worker
+architecture):
 
   1. Idle-synth-in-graph silence. With both a VST2 and a VST3 synth
      loaded into a single RenderEngine graph, driving MIDI to only ONE

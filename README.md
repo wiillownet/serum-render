@@ -1,5 +1,10 @@
 # serum-render
 
+[![PyPI](https://img.shields.io/pypi/v/serum-render)](https://pypi.org/project/serum-render/)
+[![Python versions](https://img.shields.io/pypi/pyversions/serum-render)](https://pypi.org/project/serum-render/)
+[![tests](https://github.com/wiillownet/serum-render/actions/workflows/tests.yml/badge.svg)](https://github.com/wiillownet/serum-render/actions/workflows/tests.yml)
+[![license](https://img.shields.io/pypi/l/serum-render)](LICENSE)
+
 Batch-render Serum presets to audio files. Supports Serum 1 (`.fxp`) and Serum 2 (`.SerumPreset`), on Windows and macOS, using [DawDreamer](https://github.com/DBraun/DawDreamer) as the headless engine.
 
 One render core shared by the sequential, parallel, and CLI paths, typed jobs, stock-install plugin defaults, and a first-class answer to render reproducibility. Scope is Serum 1 + Serum 2 only, permanently.
@@ -21,7 +26,7 @@ One render core shared by the sequential, parallel, and CLI paths, typed jobs, s
 ## Install
 
 ```bash
-pip install git+https://github.com/wiillownet/serum-render.git
+pip install serum-render
 ```
 
 ## CLI

@@ -6,8 +6,17 @@ build-backend = "hatchling.build"
 name = "serum-render"
 version = "0.1.0"
 description = "Batch-render Serum 1 (.fxp) and Serum 2 (.SerumPreset) presets to audio files via DawDreamer."
+readme = "README.md"
 requires-python = ">=3.11,<3.13"
 license = "GPL-3.0-or-later"
+keywords = ["serum", "serum2", "vst", "preset", "render", "audio", "dawdreamer"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Environment :: Console",
+]
 dependencies = [
     "dawdreamer",
     "soundfile",
@@ -18,6 +27,11 @@ dependencies = [
     "numpy",
     "serum2-preset-loader>=0.1.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/wiillownet/serum-render"
+Repository = "https://github.com/wiillownet/serum-render"
+Issues = "https://github.com/wiillownet/serum-render/issues"
 
 [project.scripts]
 serum-render = "serum_render.cli:app"
