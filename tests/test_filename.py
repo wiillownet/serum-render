@@ -162,3 +162,58 @@ def test_resolve_disambiguated_form_seen_first(tmp_path: Path):
         str(tmp_path / "foo.wav"),
         str(tmp_path / "foo_2.wav"),
     ]
+
+
+def test_compose_subdir_mirrors_tree(tmp_path: Path):
+    preset = tmp_path / "Bass" / "Hard Bass" / "p.fxp"
+    assert compose_filename("{subdir}/{preset}", preset, tmp_path, 48, 127) == (
+        "Bass/Hard_Bass/p"
+    )
+
+
+def test_compose_subdir_sanitizes_each_component(tmp_path: Path):
+    # Separators must not survive sanitization inside a component.
+    preset = tmp_path / "Bass (Hard)" / "Sub / Deep" / "p.fxp"
+    result = compose_filename("{subdir}/{preset}", preset, tmp_path, 48, 127)
+    assert result == "Bass_Hard/Sub/Deep/p"
+
+
+def test_compose_subdir_empty_collapses_separator(tmp_path: Path):
+    # Preset at the root: no leading "/" left behind.
+    preset = tmp_path / "p.fxp"
+    assert compose_filename("{subdir}/{preset}", preset, tmp_path, 48, 127) == "p"
+
+
+def test_compose_subdir_single_file_mode(tmp_path: Path):
+    preset = tmp_path / "p.fxp"
+    assert compose_filename("{subdir}/{preset}", preset, None, 48, 127) == "p"
+
+
+def test_compose_subdir_caps_each_component(tmp_path: Path):
+    long_dir = "d" * 300
+    preset = tmp_path / long_dir / f"{'a' * 300}.fxp"
+    parts = compose_filename("{subdir}/{preset}", preset, tmp_path, 48, 127).split("/")
+    assert [len(p) for p in parts] == [196, 196]
+
+
+def test_compose_subdir_cannot_escape_output_dir(tmp_path: Path):
+    # ".." sanitizes to "" and drops out — no traversal above output_dir.
+    preset = tmp_path / ".." / "p.fxp"
+    result = compose_filename("{subdir}/{preset}", preset, tmp_path, 48, 127)
+    assert ".." not in result
+
+
+def test_resolve_output_paths_nests_subdir_stems(tmp_path: Path):
+    paths = resolve_output_paths(["Bass/p", "Bass/p"], tmp_path, ".wav")
+    assert paths == [
+        str(tmp_path / "Bass" / "p.wav"),
+        str(tmp_path / "Bass" / "p_1.wav"),
+    ]
+
+
+def test_compose_subpath_still_flattens(tmp_path: Path):
+    # {subpath} keeps its underscore-joined behaviour — {subdir} is additive.
+    preset = tmp_path / "Bass" / "Hard" / "p.fxp"
+    assert compose_filename("{subpath}_{preset}", preset, tmp_path, 48, 127) == (
+        "Bass_Hard_p"
+    )

@@ -78,6 +78,12 @@ def compose_filename(
     presets_root must be absolute (matching discover_presets output) or
     None in single-file mode; {subpath} resolves to "" and any adjacent
     separator is collapsed.
+
+    {subdir} is {subpath}'s nested twin: the same path components, but
+    sanitized individually and joined with "/" so the output directory
+    mirrors the preset tree instead of flattening it. Components are
+    sanitized before joining, so no component can contain a separator
+    or resolve to "." / "..".
     """
     preset = sanitize(preset_path.stem)
     folder = sanitize(preset_path.parent.name)
@@ -87,10 +93,13 @@ def compose_filename(
             rel = preset_path.parent.relative_to(presets_root)
         except ValueError:
             subpath = ""
+            subdir = ""
         else:
             subpath = sanitize("_".join(rel.parts)) if rel.parts else ""
+            subdir = "/".join(filter(None, (sanitize(part) for part in rel.parts)))
     else:
         subpath = ""
+        subdir = ""
 
     result = template
     result = result.replace("{preset}", preset)
@@ -98,12 +107,15 @@ def compose_filename(
     result = result.replace("{velocity}", str(velocity))
     result = result.replace("{folder}", folder)
     result = result.replace("{subpath}", subpath)
+    result = result.replace("{subdir}", subdir)
 
     # Collapse separators that an empty {subpath} would leave behind
     # (e.g. "{subpath}_{preset}" -> "_{preset}" -> "preset").
     result = _UNDERSCORE_RUN_RE.sub("_", result).strip("_")
 
-    return result[:_STEM_MAX_LEN]
+    return "/".join(
+        part[:_STEM_MAX_LEN] for part in result.split("/") if part
+    )
 
 
 def resolve_output_paths(

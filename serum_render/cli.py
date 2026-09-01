@@ -75,7 +75,7 @@ def render(
     fmt: str = typer.Option("wav", "--format", help="Output container: wav or npy."),
     filename_template: str = typer.Option(
         "{preset}", "--filename-template",
-        help="Filename template. Vars: {preset} {note} {velocity} {folder} {subpath}.",
+        help="Filename template. Vars: {preset} {note} {velocity} {folder} {subpath} {subdir}. {subdir} nests output to mirror the preset tree.",
     ),
     midi: Optional[Path] = typer.Option(None, "--midi", help="Path to a .mid file (overrides --note)."),
     workers: int = typer.Option(-1, "--workers", help="Parallel workers. -1 = cpu_count - 1."),
