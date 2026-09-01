@@ -20,6 +20,12 @@ _SUFFIX_TO_FORMAT: dict[str, PresetFormat] = {
     ".fxp": PresetFormat.SERUM1,
     ".SerumPreset": PresetFormat.SERUM2,
 }
+# Repacked and hand-renamed presets show up with uppercase suffixes, and
+# the directory scan's rglob already matches them case-insensitively on
+# Windows. Match on a folded key; keep the canonical spellings for errors.
+_FOLDED_SUFFIX_TO_FORMAT: dict[str, PresetFormat] = {
+    suffix.lower(): fmt for suffix, fmt in _SUFFIX_TO_FORMAT.items()
+}
 
 
 def format_for_path(path: Path) -> PresetFormat:
@@ -28,7 +34,7 @@ def format_for_path(path: Path) -> PresetFormat:
     Raises ValueError on an unknown suffix so callers (single-file CLI
     mode) get a clean error rather than a silent dispatch surprise.
     """
-    fmt = _SUFFIX_TO_FORMAT.get(path.suffix)
+    fmt = _FOLDED_SUFFIX_TO_FORMAT.get(path.suffix.lower())
     if fmt is None:
         supported = ", ".join(sorted(_SUFFIX_TO_FORMAT))
         raise ValueError(

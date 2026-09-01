@@ -66,3 +66,25 @@ def test_parse_result_line_takes_last_result():
         + RESULT_PREFIX + json.dumps({"status": "ok"}) + "\n"
     )
     assert parse_result_line(stdout) == {"status": "ok"}
+
+
+def test_render_isolated_skips_without_spawning(tmp_path, monkeypatch):
+    """skip_existing must short-circuit in the parent: spawning the child
+    pays a full plugin cold start just to learn the file is already there."""
+    from serum_render import pool
+
+    out = tmp_path / "done.wav"
+    out.write_bytes(b"")
+    job = Job(
+        preset_path="/p.fxp",
+        format=PresetFormat.SERUM1,
+        output_path=str(out),
+        skip_existing=True,
+    )
+
+    def boom(*args, **kwargs):
+        raise AssertionError("subprocess spawned for an already-rendered file")
+
+    monkeypatch.setattr(subprocess, "run", boom)
+    result = pool.render_isolated(job, "/Serum.vst", None, 44100, False)
+    assert result == {"status": "skipped", "path": "/p.fxp"}

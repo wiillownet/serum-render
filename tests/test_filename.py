@@ -139,3 +139,26 @@ def test_resolve_empty_stem_falls_back_to_index(tmp_path: Path):
         str(tmp_path / "ok.wav"),
         str(tmp_path / "preset_0002.wav"),
     ]
+
+
+def test_resolve_stem_colliding_with_disambiguated_form(tmp_path: Path):
+    """A later stem equal to an earlier one's bumped form must not reuse
+    that path — two jobs sharing an output_path silently overwrite."""
+    paths = resolve_output_paths(["foo", "foo", "foo_1"], tmp_path, ".wav")
+    assert len(set(paths)) == 3
+    assert paths == [
+        str(tmp_path / "foo.wav"),
+        str(tmp_path / "foo_1.wav"),
+        str(tmp_path / "foo_1_1.wav"),
+    ]
+
+
+def test_resolve_disambiguated_form_seen_first(tmp_path: Path):
+    # Mirror of the above: the taken name arrives before the collision.
+    paths = resolve_output_paths(["foo_1", "foo", "foo"], tmp_path, ".wav")
+    assert len(set(paths)) == 3
+    assert paths == [
+        str(tmp_path / "foo_1.wav"),
+        str(tmp_path / "foo.wav"),
+        str(tmp_path / "foo_2.wav"),
+    ]

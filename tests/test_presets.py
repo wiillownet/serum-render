@@ -112,3 +112,15 @@ def test_results_are_absolute(tmp_path: Path):
     _touch(tmp_path / "b.SerumPreset")
     for p, _fmt in discover_presets(tmp_path):
         assert p.is_absolute()
+
+
+def test_format_for_path_uppercase_suffix():
+    # Repacked/renamed presets carry uppercase suffixes; the directory
+    # scan already accepts them on Windows, so the API must too.
+    assert format_for_path(Path("foo.FXP")) is PresetFormat.SERUM1
+    assert format_for_path(Path("foo.SERUMPRESET")) is PresetFormat.SERUM2
+
+
+def test_format_for_path_error_keeps_canonical_suffixes():
+    with pytest.raises(ValueError, match=r"\.SerumPreset"):
+        format_for_path(Path("foo.BOGUS"))

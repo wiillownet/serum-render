@@ -69,6 +69,16 @@ def render_isolated(
     mode). Returns the same result-dict shape as run_job; when
     `keep_audio` is set the child round-trips the array through a
     tempfile and it's loaded back here."""
+    # Mirrors the check in run_job, but before the subprocess spawns. The
+    # warm pool amortizes plugin load across a worker's lifetime; here every
+    # job pays it, so a skip would otherwise cost a full cold start.
+    if (
+        job.output_path is not None
+        and job.skip_existing
+        and Path(job.output_path).exists()
+    ):
+        return {"status": "skipped", "path": job.preset_path}
+
     import json
     import subprocess
     import sys

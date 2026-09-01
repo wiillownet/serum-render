@@ -120,15 +120,19 @@ def resolve_output_paths(
     a zero-padded `preset_NNNN` so the job gets a stable output name.
     """
     seen: dict[str, int] = {}
+    emitted: set[str] = set()
     paths: list[str] = []
     for idx, stem in enumerate(stems):
         stem = stem or f"preset_{idx:04d}"
-        if stem not in seen:
-            seen[stem] = 0
-            final_stem = stem
-        else:
+        seen.setdefault(stem, 0)
+        # Bump until the name is genuinely unused. A later stem can equal
+        # an earlier one's disambiguated form (["foo", "foo", "foo_1"]);
+        # handing both jobs the same path silently overwrites a render.
+        final_stem = stem
+        while final_stem in emitted:
             seen[stem] += 1
             final_stem = f"{stem}_{seen[stem]}"
+        emitted.add(final_stem)
         paths.append(str(output_dir / f"{final_stem}{extension}"))
     return paths
 
