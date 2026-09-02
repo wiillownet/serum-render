@@ -28,13 +28,25 @@ _FOLDED_SUFFIX_TO_FORMAT: dict[str, PresetFormat] = {
 }
 
 
+def format_or_none(path: Path) -> PresetFormat | None:
+    """Resolve a path to its PresetFormat, or None if the suffix is not a
+    supported one. The single place suffix matching happens, so directory
+    discovery and single-path dispatch can never disagree.
+
+    Matching folds case. A stemless name like `.fxp` has an empty suffix
+    under pathlib's dotfile rule, so the whole name is the fallback key —
+    presets really do get saved with an empty filename.
+    """
+    return _FOLDED_SUFFIX_TO_FORMAT.get(path.suffix.lower() or path.name.lower())
+
+
 def format_for_path(path: Path) -> PresetFormat:
     """Return the PresetFormat for a path's suffix.
 
     Raises ValueError on an unknown suffix so callers (single-file CLI
     mode) get a clean error rather than a silent dispatch surprise.
     """
-    fmt = _FOLDED_SUFFIX_TO_FORMAT.get(path.suffix.lower())
+    fmt = format_or_none(path)
     if fmt is None:
         supported = ", ".join(sorted(_SUFFIX_TO_FORMAT))
         raise ValueError(

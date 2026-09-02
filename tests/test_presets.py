@@ -124,3 +124,55 @@ def test_format_for_path_uppercase_suffix():
 def test_format_for_path_error_keeps_canonical_suffixes():
     with pytest.raises(ValueError, match=r"\.SerumPreset"):
         format_for_path(Path("foo.BOGUS"))
+
+
+# ─── discover_presets — suffix case ───────────────────────────────────
+
+def test_discover_finds_uppercase_suffixes(tmp_path: Path):
+    """A per-suffix glob inherits the filesystem's case rules, so the same
+    file was found on Windows but not on a case-sensitive volume — while
+    format_for_path accepted it on both."""
+    _touch(tmp_path / "loud.FXP")
+    _touch(tmp_path / "mixed.Fxp")
+    _touch(tmp_path / "two.SERUMPRESET")
+    found = {p.name: fmt for p, fmt in discover_presets(tmp_path)}
+    assert found == {
+        "loud.FXP": PresetFormat.SERUM1,
+        "mixed.Fxp": PresetFormat.SERUM1,
+        "two.SERUMPRESET": PresetFormat.SERUM2,
+    }
+
+
+def test_discover_skips_directories_named_like_presets(tmp_path: Path):
+    (tmp_path / "kit.fxp").mkdir()
+    _touch(tmp_path / "kit.fxp" / "real.fxp")
+    found = [p.name for p, _fmt in discover_presets(tmp_path)]
+    assert found == ["real.fxp"]
+
+
+def test_discover_finds_stemless_preset(tmp_path: Path):
+    """A preset saved with an empty filename is just `.fxp`, which pathlib
+    reports as suffix '' — real files like this exist in preset libraries."""
+    _touch(tmp_path / ".fxp")
+    _touch(tmp_path / ".SerumPreset")
+    found = {p.name: fmt for p, fmt in discover_presets(tmp_path)}
+    assert found == {
+        ".fxp": PresetFormat.SERUM1,
+        ".SerumPreset": PresetFormat.SERUM2,
+    }
+
+
+def test_format_for_path_stemless(tmp_path: Path):
+    # discover_presets and format_for_path must agree on the same file.
+    assert format_for_path(Path(".fxp")) is PresetFormat.SERUM1
+    assert format_for_path(Path(".SERUMPRESET")) is PresetFormat.SERUM2
+
+
+def test_discover_and_format_for_path_agree(tmp_path: Path):
+    """The two entry points resolve every discovered file identically —
+    the class of bug where a batch run sees a preset the library API
+    then rejects."""
+    for name in ("a.fxp", "b.FXP", "c.SerumPreset", "d.SERUMPRESET", ".fxp"):
+        _touch(tmp_path / name)
+    for path, fmt in discover_presets(tmp_path):
+        assert format_for_path(path) is fmt

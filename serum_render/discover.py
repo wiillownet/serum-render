@@ -7,7 +7,7 @@ from pathlib import Path
 
 import mido
 
-from .formats import PresetFormat, _SUFFIX_TO_FORMAT, format_for_path
+from .formats import PresetFormat, format_for_path, format_or_none
 
 _SANITIZE_RE = re.compile(r"[^A-Za-z0-9_-]")
 _UNDERSCORE_RUN_RE = re.compile(r"_+")
@@ -27,8 +27,10 @@ def discover_presets(
 
     - Single file: format inferred from suffix; unknown suffix raises
       ValueError (a misnamed file would dispatch to the wrong engine).
-    - Directory: globs every supported extension, recursively by default,
-      sorted alphabetically by absolute path.
+    - Directory: finds every supported extension regardless of the
+      suffix's case, recursively by default, sorted alphabetically by
+      absolute path. Directories that merely look like presets (a folder
+      named `kit.fxp`) are skipped.
     - Raises FileNotFoundError if `path` does not exist.
 
     Returns a list of `(absolute_path, format)` tuples.
@@ -40,11 +42,15 @@ def discover_presets(
     if path.is_file():
         return [(path.resolve(), format_for_path(path))]
 
+    # One walk, matching on the folded suffix. A per-suffix glob would
+    # inherit the filesystem's case rules: "*.fxp" matches MyPreset.FXP on
+    # Windows and case-insensitive macOS volumes but not on a case-sensitive
+    # one, so the same file was discoverable on one machine and invisible on
+    # another while format_for_path accepted it everywhere.
     files: list[tuple[Path, PresetFormat]] = []
-    for suffix, fmt in _SUFFIX_TO_FORMAT.items():
-        pattern = f"*{suffix}"
-        matches = path.rglob(pattern) if recurse else path.glob(pattern)
-        for f in matches:
+    for f in path.rglob("*") if recurse else path.glob("*"):
+        fmt = format_or_none(f)
+        if fmt is not None and f.is_file():
             files.append((f.resolve(), fmt))
 
     return sorted(files, key=lambda t: t[0])
