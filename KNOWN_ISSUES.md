@@ -112,9 +112,25 @@ render then captures a partially-loaded instrument. This is unrelated to
 presets referencing missing sample files — the affected renders logged no
 `can't open` warnings.
 
-**Not fixed.** A longer or content-aware warmup would likely help but has not
-been tested, and no amount of warmup is a guarantee without a signal from the
-plugin that loading finished.
+**Not fixed, and a settle render is not the fix.** Tested (2026-09-01):
+inserting a throwaway render between `load_state` and the real render, swept
+from 0 to 3 seconds, across five sample-based presets. Results do not
+generalise — at a 1-second settle, `PN - Piano Space` and
+`GTR - Acoustic Guitar Duo` became perfectly stable, `PN - Piano Classic Layer`
+moved from a stable-but-wrong 0.0512 to ~0.3325 with 0.2% jitter,
+`PN - Piano Dance` got *worse* (stable at 0 settle, alternating between two
+values at 1 second), and `PN - Ambient Piano` was unchanged: 8 distinct peaks
+across 8 loads in both conditions, ranging 0.08 to 0.30.
+
+That last one probably is not a load race at all — a spread that wide, present
+regardless of settle time, looks like per-note randomisation inside the preset
+(random phase, noise, sample start). So at least two distinct effects are mixed
+together here, and a single warmup knob cannot address both.
+
+Also note the first load in a process usually differs from every later one:
+with no settle, most presets tested were stable across loads 2..N but not on
+load 1. That is the same order-dependence documented above, not a separate
+problem.
 
 **Detect:** render twice and compare, e.g.
 `cmp a/preset.wav b/preset.wav`, or compare peak amplitudes — the failure mode
