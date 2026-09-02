@@ -39,5 +39,11 @@ serum-render = "serum_render.cli:app"
 [project.optional-dependencies]
 dev = ["pytest"]
 
+# CLAUDE.md and .claude/ are ignored machine-wide via git's core.excludesFile,
+# which hatchling does not read — it only honors the project's own .gitignore.
+# Without this they get swept into the sdist from the working directory.
+[tool.hatch.build.targets.sdist]
+exclude = ["CLAUDE.md", "CLAUDE.local.md", ".claude"]
+
 [tool.pytest.ini_options]
 markers = ["slow: integration tests that require a plugin to be installed"]
