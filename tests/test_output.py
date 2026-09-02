@@ -49,3 +49,35 @@ def test_unknown_bit_depth_raises(tmp_path: Path):
 def test_unknown_format_raises(tmp_path: Path):
     with pytest.raises(ValueError, match="format"):
         write_audio(_audio(), str(tmp_path / "a.flac"), 44100, "16", "flac")
+
+
+# ---- atomic write ---------------------------------------------------------
+#
+# write_audio renames a temp file into place so a killed render can never
+# leave a truncated file at the target — skip_existing would otherwise skip
+# that garbage forever on the re-run.
+
+
+@pytest.mark.parametrize("name,fmt", [("a.wav", "wav"), ("a.npy", "npy")])
+def test_no_temp_file_survives_a_successful_write(tmp_path: Path, name, fmt):
+    write_audio(_audio(), str(tmp_path / name), 44100, "16", fmt)
+    assert sorted(p.name for p in tmp_path.iterdir()) == [name]
+
+
+def test_temp_suffix_stays_out_of_extension_globs(tmp_path: Path):
+    """`a.wav.tmp`, never `a.tmp.wav` — a stray from a SIGKILL must not be
+    picked up by the `*.wav` globs callers use over the output directory."""
+    write_audio(_audio(), str(tmp_path / "a.wav"), 44100, "16", "wav")
+    assert [p.name for p in tmp_path.glob("*.wav")] == ["a.wav"]
+
+
+def test_failed_write_leaves_nothing_behind(tmp_path: Path, monkeypatch):
+    """The existing unknown-format/bit-depth cases raise *before* any write,
+    so the cleanup path needs a failure during one."""
+    def boom(*args, **kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(sf, "write", boom)
+    with pytest.raises(RuntimeError, match="disk full"):
+        write_audio(_audio(), str(tmp_path / "a.wav"), 44100, "16", "wav")
+    assert list(tmp_path.iterdir()) == []

@@ -98,6 +98,20 @@ process (`discover.get_midi_duration`); workers never parse MIDI.
 4. `EngineHost.render` — one backstop RuntimeError for a format with no
    engine.
 
+## Machine-readable output
+
+`--json` (`cli.py`) turns stdout into an NDJSON event stream: `start`
+(with `schema`, `total`, `workers`), one `result` per job carrying the
+worker's result dict verbatim, then `done` with the totals and elapsed
+seconds. Every human-readable line moves to stderr, and the rich
+progress bar is suppressed outright — rich writes it to stdout and
+still prints one final renderable when stdout is not a tty.
+
+`--json` is tested before `--verbose` in the results loop: they are
+independent flags and the other order drops the stream when both are
+set. The per-result `peak` comes from `engine.run_job` and is carried,
+not acted on; nothing in the render path branches on it.
+
 ## Default plugin paths
 
 `config.default_plugin_path(fmt, platform=None)` returns the standard

@@ -64,8 +64,37 @@ A directory containing both `.fxp` and `.SerumPreset` files renders as one mixed
 | `--skip-existing` | off | Skip presets whose output already exists. |
 | `--no-recurse` | off | Don't descend into subdirectories. |
 | `--dry-run` | off | Print the render plan and exit. |
+| `--json` | off | Emit machine-readable events on stdout (see below). |
 
 Run `serum-render --help` for the full list.
+
+### Machine-readable output
+
+`--json` writes one JSON object per line to stdout and moves every
+human-readable line to stderr, for driving serum-render from another
+program:
+
+```
+{"event":"start","schema":1,"total":4271,"workers":7}
+{"event":"result","status":"ok","path":".../Bass 1.fxp","peak":0.3325}
+{"event":"result","status":"skipped","path":"..."}
+{"event":"result","status":"error","path":"...","error":"..."}
+{"event":"done","ok":4268,"skipped":0,"failed":3,"elapsed":612.4}
+```
+
+`--dry-run --json` emits the `start` event alone and exits. Exit codes
+are unchanged: `0` clean, `1` some renders failed, `2` usage or
+validation error. Validation errors write to stderr and produce no
+events, so **exit 0 always means at least one `done` event** — a run that
+found no presets still emits `start` with `total: 0` and a zeroed `done`.
+
+Two rules for consumers. Reject an unrecognised `schema` rather than
+guessing at the shape. And skip any stdout line that fails to parse:
+loky workers inherit the parent's stdout, so a plugin printing from C
+could in principle interleave with the stream — trust the counts in
+`done` over a local tally of `result` events.
+
+**The output shape is unstable until 1.0.**
 
 ## Library API
 

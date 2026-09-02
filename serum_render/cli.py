@@ -4,7 +4,9 @@ flags beat platform defaults), builds typed Jobs, and drives the pool.
 """
 from __future__ import annotations
 
+import json
 import logging
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -39,6 +41,17 @@ app = typer.Typer(
 _FLAG_FOR = {PresetFormat.SERUM1: "--serum1", PresetFormat.SERUM2: "--serum2"}
 _EXT_FOR = {PresetFormat.SERUM1: ".fxp", PresetFormat.SERUM2: ".SerumPreset"}
 _PLUGIN_NAME_FOR = {PresetFormat.SERUM1: "Serum 1", PresetFormat.SERUM2: "Serum 2"}
+
+
+# --json stream version. Bumped only on an incompatible shape change;
+# consumers should reject an unknown value rather than guess at it.
+_JSON_SCHEMA = 1
+
+
+def _emit(event: dict) -> None:
+    """Write one NDJSON event to stdout. Under --json, stdout carries
+    these and nothing else — every human-readable line goes to stderr."""
+    typer.echo(json.dumps(event))
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -89,6 +102,12 @@ def render(
     no_recurse: bool = typer.Option(False, "--no-recurse", help="Do not recurse into subdirectories."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print presets that would render and exit."),
     verbose: bool = typer.Option(False, "--verbose", help="Per-preset status logging."),
+    json_out: bool = typer.Option(
+        False, "--json",
+        help="Emit one JSON event per line on stdout (start, result per "
+             "preset, done) and move all human-readable output to stderr. "
+             "Output shape is unstable until 1.0.",
+    ),
 ) -> None:
     _setup_logging(verbose)
 
@@ -138,6 +157,18 @@ def render(
             f"No supported preset files (.fxp, .SerumPreset) found under {presets}",
             err=True,
         )
+        # Emit the full pair anyway. Exiting 0 with an empty stream is
+        # indistinguishable from a successful run to a consumer, and a
+        # mistyped preset directory is the likeliest way to land here.
+        if json_out:
+            _emit({
+                "event": "start", "schema": _JSON_SCHEMA, "total": 0,
+                "workers": resolve_worker_count(workers),
+            })
+            _emit({
+                "event": "done", "ok": 0, "skipped": 0, "failed": 0,
+                "elapsed": 0.0,
+            })
         raise typer.Exit(code=0)
 
     # Resolve plugin paths: an explicit flag always wins; otherwise fall
@@ -155,7 +186,8 @@ def render(
             if fallback is not None:
                 plugin_paths[preset_fmt] = fallback
                 typer.echo(
-                    f"Using default {_PLUGIN_NAME_FOR[preset_fmt]} plugin: {fallback}"
+                    f"Using default {_PLUGIN_NAME_FOR[preset_fmt]} plugin: {fallback}",
+                    err=True,
                 )
 
     missing = discovered_formats - set(plugin_paths)
@@ -214,9 +246,17 @@ def render(
     ]
 
     if dry_run:
-        typer.echo(f"Would render {len(jobs)} preset(s):")
-        for j in jobs:
-            typer.echo(f"  {j.preset_path}  ->  {j.output_path}")
+        if json_out:
+            # No separate "plan" event — a start with the total is the
+            # same information, and one fewer branch for a consumer.
+            _emit({
+                "event": "start", "schema": _JSON_SCHEMA, "total": len(jobs),
+                "workers": resolve_worker_count(workers),
+            })
+        else:
+            typer.echo(f"Would render {len(jobs)} preset(s):")
+            for j in jobs:
+                typer.echo(f"  {j.preset_path}  ->  {j.output_path}")
         raise typer.Exit(code=0)
 
     output.mkdir(parents=True, exist_ok=True)
@@ -233,6 +273,7 @@ def render(
     )
 
     results: list[dict] = []
+    t0 = time.monotonic()
     if deterministic:
         from .pool import iter_jobs_isolated
 
@@ -242,10 +283,25 @@ def render(
     else:
         result_iter = iter_jobs(jobs, n_workers, serum1_str, serum2_str, sample_rate)
 
+    # --json is tested before --verbose: they are independent flags, and
+    # the other order would silently drop the stream when both are set.
     # In verbose mode, per-preset DEBUG logs replace the progress bar so
-    # the two don't fight for the terminal.
-    if verbose:
-        typer.echo(f"Rendering {len(jobs)} preset(s) with {n_workers} workers…")
+    # the two don't fight for the terminal. Under --json the bar is
+    # suppressed outright: rich writes it to stdout, and when stdout is
+    # not a tty it still prints one final renderable that would corrupt
+    # the stream.
+    if json_out:
+        _emit({
+            "event": "start", "schema": _JSON_SCHEMA, "total": len(jobs),
+            "workers": n_workers,
+        })
+        for result in result_iter:
+            results.append(result)
+            _emit({"event": "result", **result})
+    elif verbose:
+        typer.echo(
+            f"Rendering {len(jobs)} preset(s) with {n_workers} workers…", err=True
+        )
         results = list(result_iter)
     else:
         with Progress(
@@ -268,7 +324,13 @@ def render(
     skipped = sum(1 for r in results if r["status"] == "skipped")
     errors = [r for r in results if r["status"] == "error"]
 
-    typer.echo(f"Done: {ok} rendered, {skipped} skipped, {len(errors)} failed.")
+    if json_out:
+        _emit({
+            "event": "done", "ok": ok, "skipped": skipped,
+            "failed": len(errors), "elapsed": round(time.monotonic() - t0, 3),
+        })
+    else:
+        typer.echo(f"Done: {ok} rendered, {skipped} skipped, {len(errors)} failed.")
     for r in errors:
         typer.echo(f"  FAIL {r.get('path')}: {r.get('error')}", err=True)
     raise typer.Exit(code=1 if errors else 0)

@@ -205,6 +205,14 @@ def run_job(job: Job) -> dict:
             return {"status": "skipped", "path": job.preset_path}
 
         audio = _HOST.render(job)
+
+        import numpy as np
+
+        # Carried for consumers, not acted on here. The silence warning in
+        # EngineHost.render only fires below SILENCE_EPS, which is three
+        # orders of magnitude under the wrong-level renders documented in
+        # KNOWN_ISSUES.md — those are invisible without the raw number.
+        peak = float(np.max(np.abs(audio)))
         if job.output_path is not None:
             write_audio(
                 audio,
@@ -213,8 +221,13 @@ def run_job(job: Job) -> dict:
                 job.bit_depth,
                 job.output_format,
             )
-            return {"status": "ok", "path": job.preset_path}
-        return {"status": "ok", "path": job.preset_path, "audio": audio}
+            return {"status": "ok", "path": job.preset_path, "peak": peak}
+        return {
+            "status": "ok",
+            "path": job.preset_path,
+            "peak": peak,
+            "audio": audio,
+        }
     except Exception as exc:
         logger.warning("Failed to render %s: %s", job.preset_path, exc)
         return {"status": "error", "path": job.preset_path, "error": str(exc)}

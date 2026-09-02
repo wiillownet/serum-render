@@ -137,3 +137,15 @@ problem.
 is bimodal and obvious, not subtle. Affected presets are the sample-based ones
 (pianos, guitars, drum kits, orchestral); pure-synthesis presets and all of
 Serum 1 are unaffected.
+
+---
+
+## A killed render can leave a stray `.tmp` file
+
+`write_audio` renders to `<output>.wav.tmp` / `<output>.npy.tmp` and renames it into place, so a `SIGKILL` mid-write can never leave a truncated file at the real output path — which `--skip-existing` would otherwise skip forever on the re-run. The trade is that a killed batch leaves up to `--workers` stray `.tmp` files. The suffix goes *after* the real extension deliberately, so strays stay out of `*.wav` globs. Delete them with `find <output> -name '*.tmp' -delete`.
+
+---
+
+## Worker stdout is shared with the `--json` event stream
+
+loky workers inherit the parent's stdout, so a plugin printing from C code could in principle interleave with `--json` output and split an event line in two. This has never been observed — the only noise Serum's loader is known to produce goes to stderr (see the JUCE entry above) — and nothing in serum-render writes to stdout from a worker. Consumers should skip any line that fails to parse and trust the counts in the `done` event over their own tally of `result` events, which is where a lost line becomes visible.

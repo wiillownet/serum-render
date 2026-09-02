@@ -265,7 +265,12 @@ def test_run_job_writes_to_disk_and_returns_status_only(monkeypatch, tmp_path):
         output_path=str(out),
     )
     result = run_job(job)
-    assert result == {"status": "ok", "path": "/p.fxp"}
+    assert result["status"] == "ok"
+    assert result["path"] == "/p.fxp"
+    # The point of the disk path: no audio array crosses the process
+    # boundary. `peak` is the only extra, and it is a scalar.
+    assert "audio" not in result
+    assert result["peak"] == 0.0
     assert out.exists()
 
 

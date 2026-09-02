@@ -4,7 +4,9 @@ worker pool — they assert argument parsing, validation, error messaging,
 exit codes, default-plugin-path resolution, and the --dry-run path.
 
 Output is read via `result.output` (the merged stream) so the suite is
-portable across Click versions.
+portable across Click versions. The --json cases at the bottom are the
+exception: stdout hygiene is only observable in a real subprocess, so
+those shell out rather than using CliRunner.
 
 Default-path resolution is stubbed in most tests: this machine may have
 real Serum installs, and the CLI would otherwise silently pick them up
@@ -12,6 +14,9 @@ and proceed past the validation being tested.
 """
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 import mido
@@ -20,6 +25,8 @@ from typer.testing import CliRunner
 
 import serum_render.cli as cli
 from serum_render.cli import app
+from serum_render.config import default_plugin_path
+from serum_render.formats import PresetFormat
 
 runner = CliRunner()
 
@@ -426,3 +433,83 @@ def test_dry_run_with_relative_presets_dir_resolves_subpath(
     )
     assert result.exit_code == 0, result.output
     assert "Leads_lead.wav" in result.output
+
+
+# ---- --json event stream --------------------------------------------------
+#
+# Stdout hygiene is asserted in a real subprocess, not through CliRunner:
+# CliRunner patches sys.stdout in-process, so it cannot see writes that
+# reach the real fd 1 (loky workers, and rich's final Progress renderable).
+# The content assertions below use CliRunner and are stream-agnostic, so
+# they stay portable across Click/Typer versions the way the rest of this
+# module is.
+
+
+def _json_lines(text: str) -> list[dict]:
+    return [json.loads(line) for line in text.splitlines() if line.strip()]
+
+
+def test_json_dry_run_emits_one_start_event(fake_env, no_defaults):
+    plugin, presets, output = fake_env
+    result = runner.invoke(
+        app,
+        [str(presets), str(output), "--serum1", str(plugin), "--dry-run", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    events = _json_lines(result.stdout)
+    assert len(events) == 1
+    assert events[0]["event"] == "start"
+    assert events[0]["schema"] == 1
+    assert events[0]["total"] == 2  # fake_env plants two .fxp files
+
+
+def test_json_no_presets_still_emits_start_and_done(tmp_path, no_defaults):
+    """Exit 0 with an empty stream is indistinguishable from success, and a
+    mistyped preset directory is the likeliest way to reach this branch."""
+    plugin = tmp_path / "Serum.vst"
+    _touch(plugin)
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    result = runner.invoke(
+        app, [str(empty), str(tmp_path / "out"), "--serum1", str(plugin), "--json"]
+    )
+    assert result.exit_code == 0
+    events = _json_lines(result.stdout)
+    assert [e["event"] for e in events] == ["start", "done"]
+    assert events[0]["total"] == 0
+    assert events[1] == {
+        "event": "done", "ok": 0, "skipped": 0, "failed": 0, "elapsed": 0.0,
+    }
+
+
+def _run_cli(args: list[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, "-m", "serum_render", *args],
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_json_stdout_is_pure_ndjson_in_a_real_process(fake_env):
+    """The assertion CliRunner cannot make: nothing else reaches fd 1."""
+    plugin, presets, output = fake_env
+    proc = _run_cli(
+        [str(presets), str(output), "--serum1", str(plugin), "--dry-run", "--json"]
+    )
+    assert proc.returncode == 0, proc.stderr
+    events = _json_lines(proc.stdout)
+    assert len(events) == 1 and events[0]["total"] == 2
+
+
+@pytest.mark.skipif(
+    default_plugin_path(PresetFormat.SERUM1) is None,
+    reason="No default Serum 1 install to trigger the fallback notice.",
+)
+def test_json_default_plugin_notice_goes_to_stderr(fake_env):
+    """The notice is diagnostic, so it must not land in the event stream."""
+    _plugin, presets, output = fake_env
+    proc = _run_cli([str(presets), str(output), "--dry-run", "--json"])
+    assert proc.returncode == 0, proc.stderr
+    assert "Using default" in proc.stderr
+    assert "Using default" not in proc.stdout
+    assert _json_lines(proc.stdout)  # still parses cleanly
