@@ -75,6 +75,7 @@ def compose_filename(
     presets_root: Path | None,
     note: int,
     velocity: int,
+    fmt: PresetFormat | None = None,
 ) -> str:
     """
     Compose a filename stem by substituting template variables against a
@@ -84,6 +85,11 @@ def compose_filename(
     presets_root must be absolute (matching discover_presets output) or
     None in single-file mode; {subpath} resolves to "" and any adjacent
     separator is collapsed.
+
+    {format} is the preset's format ("serum1" / "serum2"), for splitting a
+    mixed batch into per-synth output folders. It renders empty when `fmt`
+    is not supplied, and an empty path component is dropped, so
+    "{format}/{preset}" degrades to "{preset}".
 
     {subdir} is {subpath}'s nested twin: the same path components, but
     sanitized individually and joined with "/" so the output directory
@@ -114,6 +120,7 @@ def compose_filename(
     result = result.replace("{folder}", folder)
     result = result.replace("{subpath}", subpath)
     result = result.replace("{subdir}", subdir)
+    result = result.replace("{format}", fmt.value if fmt is not None else "")
 
     # Collapse separators that an empty {subpath} would leave behind
     # (e.g. "{subpath}_{preset}" -> "_{preset}" -> "preset").

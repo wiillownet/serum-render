@@ -88,7 +88,7 @@ def render(
     fmt: str = typer.Option("wav", "--format", help="Output container: wav or npy."),
     filename_template: str = typer.Option(
         "{preset}", "--filename-template",
-        help="Filename template. Vars: {preset} {note} {velocity} {folder} {subpath} {subdir}. {subdir} nests output to mirror the preset tree.",
+        help="Filename template. Vars: {preset} {note} {velocity} {folder} {subpath} {subdir} {format}. {subdir} nests output to mirror the preset tree; {format} splits a mixed batch into serum1/ and serum2/ folders.",
     ),
     midi: Optional[Path] = typer.Option(None, "--midi", help="Path to a .mid file (overrides --note)."),
     workers: int = typer.Option(-1, "--workers", help="Parallel workers. -1 = cpu_count - 1."),
@@ -223,8 +223,8 @@ def render(
 
     extension = ".npy" if fmt == "npy" else ".wav"
     stems = [
-        compose_filename(filename_template, p, presets_root, note, velocity)
-        for p, _ in preset_files
+        compose_filename(filename_template, p, presets_root, note, velocity, pfmt)
+        for p, pfmt in preset_files
     ]
     output_paths = resolve_output_paths(stems, output, extension)
     jobs = [

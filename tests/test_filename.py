@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from serum_render.discover import compose_filename, resolve_output_paths
+from serum_render.formats import PresetFormat
 
 
 def test_compose_simple_preset(tmp_path: Path):
@@ -217,3 +218,30 @@ def test_compose_subpath_still_flattens(tmp_path: Path):
     assert compose_filename("{subpath}_{preset}", preset, tmp_path, 48, 127) == (
         "Bass_Hard_p"
     )
+
+
+# ---- {format}: splitting a mixed batch by synth ---------------------------
+
+
+def test_compose_format_token(tmp_path: Path):
+    preset = tmp_path / "Bass" / "Growl.fxp"
+    assert compose_filename(
+        "{format}/{preset}", preset, tmp_path, 48, 127, PresetFormat.SERUM1
+    ) == "serum1/Growl"
+    preset2 = tmp_path / "Pads" / "Air.SerumPreset"
+    assert compose_filename(
+        "{format}/{preset}", preset2, tmp_path, 48, 127, PresetFormat.SERUM2
+    ) == "serum2/Air"
+
+
+def test_compose_format_omitted_collapses(tmp_path: Path):
+    """Callers that don't pass a format still get a usable stem."""
+    preset = tmp_path / "Growl.fxp"
+    assert compose_filename("{format}/{preset}", preset, tmp_path, 48, 127) == "Growl"
+
+
+def test_compose_format_combines_with_subdir(tmp_path: Path):
+    preset = tmp_path / "Bass" / "Hard" / "Growl.fxp"
+    assert compose_filename(
+        "{format}/{subdir}/{preset}", preset, tmp_path, 48, 127, PresetFormat.SERUM2
+    ) == "serum2/Bass/Hard/Growl"
