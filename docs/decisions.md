@@ -50,3 +50,28 @@ Fresh-process-per-preset is the one mechanism that works for both formats, is ex
 **Decision:** When `--serum1` / `--serum2` is omitted, fall back to the standard install location — but only for formats actually present in the discovered preset set, and only if the default path exists on disk. A missing default is treated as "unset" (normal missing-plugin error naming the flag), never an error by itself. Explicit flag always beats the default. Invariant: the Serum 1 default is always a VST2 binary (macOS `/Library/Audio/Plug-Ins/VST/Serum.vst`, Windows `C:/Program Files/Common Files/VST3/Serum_x64.dll`) — never the Serum 1 VST3, which silently mis-loads `.fxp`.
 
 **Reason:** Serum-only-forever scope makes stock-install defaults safe and a big UX win (`serum-render presets/ out/` just works). Filling only discovered formats avoids booting an unused synth (wasted init, JUCE stderr noise, per-job reset cost in deterministic mode).
+
+## [2026-09-01] No settle render for the Serum 2 multisample instability
+
+**Decision:** Leave the render path alone. Sample-based Serum 2 presets can render at the wrong level or unstably (see `KNOWN_ISSUES.md`); a throwaway "settle" render between `load_state` and the real render is **not** the fix and is not shipping. The 0.1s warmup at `EngineHost` construction stays exactly as it is.
+
+**Reason:** Swept a post-load settle render from 0 to 3 seconds across five sample-based Factory presets, 8 consecutive loads each, recording peak amplitude:
+
+| preset | settle=0 | settle=1.0s |
+|---|---|---|
+| PN - Piano Classic Layer | stable 0.0512 (wrong level) | ~0.3325, 0.2% jitter |
+| PN - Piano Space | 2 distinct | **1 distinct — stable** |
+| GTR - Acoustic Guitar Duo | 2 distinct | **1 distinct — stable** |
+| PN - Piano Dance | stable 0.0327 | **2 distinct — worse** |
+| PN - Ambient Piano | 8 distinct (0.08–0.30) | 8 distinct (0.10–0.30) |
+
+It fixes two presets, regresses one, and does nothing for a fourth. Shipping it would trade a documented problem for an undocumented one that varies per preset.
+
+Two effects are mixed together here, which is why one knob cannot address them:
+
+1. **A load-completeness effect.** `Piano Classic Layer` renders a *stable but wrong* 0.0512 with no settle and converges to ~0.333 with one; settle values of 1.0, 2.0 and 3.0 give byte-identical results, so it does plateau. Stable-but-wrong is the nastier failure — re-rendering and comparing, the detection advice in `KNOWN_ISSUES.md`, will not catch it.
+2. **Per-note randomisation inside the preset.** `Ambient Piano` gives 8 distinct peaks across 8 loads regardless of settle time. A spread that wide and that settle-independent reads as random phase / noise / sample-start in the preset itself, which no host-side warmup can remove.
+
+Also measured: with no settle, most presets are stable across loads 2..N and only load 1 differs. That is the order-dependence already documented, not a third effect.
+
+**Alternatives considered:** a longer warmup at `EngineHost` construction — rejected, it happens before any preset is loaded, so it cannot affect a per-preset sample load. A per-preset settle tuned by sample count or blob size — not attempted: worth doing only if a structural trait is first shown to predict which presets drift, and that has not been established. Waiting on a load-complete signal from the plugin — no such signal is known to be exposed via DawDreamer.
