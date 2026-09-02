@@ -28,6 +28,18 @@ _FOLDED_SUFFIX_TO_FORMAT: dict[str, PresetFormat] = {
 }
 
 
+# Format -> canonical suffix. Derived from the one table above so the two
+# directions cannot drift apart.
+_FORMAT_TO_SUFFIX: dict[PresetFormat, str] = {
+    fmt: suffix for suffix, fmt in _SUFFIX_TO_FORMAT.items()
+}
+
+
+def suffix_for(fmt: PresetFormat) -> str:
+    """Canonical file suffix for a format (`.fxp` / `.SerumPreset`)."""
+    return _FORMAT_TO_SUFFIX[fmt]
+
+
 def format_or_none(path: Path) -> PresetFormat | None:
     """Resolve a path to its PresetFormat, or None if the suffix is not a
     supported one. The single place suffix matching happens, so directory

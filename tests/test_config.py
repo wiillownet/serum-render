@@ -1,10 +1,12 @@
 import dataclasses
+import json
 from pathlib import Path
 
 import pytest
 
+import serum_render.config as config
 from serum_render.config import RenderConfig, default_plugin_path
-from serum_render.formats import PresetFormat
+from serum_render.formats import PresetFormat, format_for_path, suffix_for
 
 
 def test_defaults_resolve():
@@ -163,3 +165,82 @@ def test_default_serum2_paths(monkeypatch):
 
 def test_default_path_none_on_unknown_platform():
     assert default_plugin_path(PresetFormat.SERUM1, platform="linux") is None
+
+
+# ---- preset directory detection -------------------------------------------
+
+
+def _preset_tree(root: Path, suffix: str, name: str = "Bass") -> Path:
+    """A directory that actually holds a preset of that format."""
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "Sub").mkdir(exist_ok=True)
+    (root / "Sub" / f"{name}{suffix}").write_bytes(b"")
+    return root
+
+
+@pytest.fixture
+def preset_env(tmp_path, monkeypatch):
+    """Point both lookup tables at tmp_path for a fake 'testos' platform."""
+    prefs = tmp_path / "SerumPrefs.json"
+    fallback = tmp_path / "fallback"
+    monkeypatch.setattr(config, "_PREFS_PATHS", {"testos": {PresetFormat.SERUM1: str(prefs)}})
+    monkeypatch.setattr(config, "_DEFAULT_PRESET_DIRS", {"testos": {PresetFormat.SERUM1: str(fallback)}})
+    return prefs, fallback
+
+
+def test_preset_dir_prefers_the_folder_serum_records(preset_env, tmp_path):
+    """Serum's folder is relocatable from inside the plugin, so its own
+    prefs entry beats the standard install location."""
+    prefs, fallback = preset_env
+    _preset_tree(fallback, ".fxp")
+    moved = _preset_tree(tmp_path / "moved", ".fxp")
+    prefs.write_text(json.dumps({"Serum Presets Path": f"{moved} "}))
+    assert config.default_preset_dir(PresetFormat.SERUM1, "testos") == moved
+
+
+def test_blank_prefs_value_falls_back(preset_env):
+    """Serum 1 writes a single space when the folder was never moved."""
+    prefs, fallback = preset_env
+    _preset_tree(fallback, ".fxp")
+    prefs.write_text(json.dumps({"Serum Presets Path": " "}))
+    assert config.default_preset_dir(PresetFormat.SERUM1, "testos") == fallback
+
+
+def test_directory_without_matching_presets_is_not_a_hit(preset_env):
+    """A folder holding only the *other* format is a miss, not an empty batch."""
+    _prefs, fallback = preset_env
+    _preset_tree(fallback, ".SerumPreset")
+    assert config.default_preset_dir(PresetFormat.SERUM1, "testos") is None
+
+
+def test_uppercase_suffix_still_counts(preset_env):
+    _prefs, fallback = preset_env
+    _preset_tree(fallback, ".FXP")
+    assert config.default_preset_dir(PresetFormat.SERUM1, "testos") == fallback
+
+
+def test_malformed_prefs_falls_back_instead_of_raising(preset_env):
+    prefs, fallback = preset_env
+    _preset_tree(fallback, ".fxp")
+    prefs.write_text("{not json")
+    assert config.default_preset_dir(PresetFormat.SERUM1, "testos") == fallback
+
+
+def test_stale_prefs_path_falls_back(preset_env, tmp_path):
+    prefs, fallback = preset_env
+    _preset_tree(fallback, ".fxp")
+    prefs.write_text(json.dumps({"Serum Presets Path": str(tmp_path / "deleted")}))
+    assert config.default_preset_dir(PresetFormat.SERUM1, "testos") == fallback
+
+
+def test_nothing_found_returns_none(preset_env):
+    assert config.default_preset_dir(PresetFormat.SERUM1, "testos") is None
+
+
+def test_unknown_platform_returns_none(preset_env):
+    assert config.default_preset_dir(PresetFormat.SERUM1, "plan9") is None
+
+
+def test_suffix_for_round_trips_every_format():
+    for fmt in PresetFormat:
+        assert format_for_path(Path(f"x{suffix_for(fmt)}")) is fmt

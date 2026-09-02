@@ -1,11 +1,12 @@
 """Frozen render configuration. Stdlib-only at module level."""
 from __future__ import annotations
 
+import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from .formats import PresetFormat
+from .formats import PresetFormat, suffix_for
 
 # Peak below this is treated as silent output by the engine.
 # -90 dBFS ~= 16-bit quantization floor. Advisory only — known to be
@@ -27,6 +28,98 @@ _DEFAULT_PLUGIN_PATHS: dict[str, dict[PresetFormat, str]] = {
         PresetFormat.SERUM2: "C:/Program Files/Common Files/VST3/Serum2.vst3",
     },
 }
+
+
+# Where Serum keeps its factory presets when they have not been moved.
+# The macOS entries are verified against a real install (2026-09-01). The
+# Windows entries are NOT verified on a Windows machine — that is safe
+# here, because `default_preset_dir` only ever returns a directory that
+# exists and actually holds presets of that format, so a wrong guess
+# degrades to "not found" instead of to a wrong answer.
+_DEFAULT_PRESET_DIRS: dict[str, dict[PresetFormat, str]] = {
+    "darwin": {
+        PresetFormat.SERUM1: "/Library/Audio/Presets/Xfer Records/Serum Presets",
+        PresetFormat.SERUM2: "/Library/Audio/Presets/Xfer Records/Serum 2 Presets",
+    },
+    "win32": {
+        PresetFormat.SERUM1: "C:/ProgramData/Xfer/Serum Presets",
+        PresetFormat.SERUM2: "C:/ProgramData/Xfer/Serum 2 Presets",
+    },
+}
+
+# Serum records its own preset folder in these prefs files. Reading it
+# beats assuming the default, because the folder is relocatable from
+# inside the plugin. A blank or whitespace-only value means "unset" —
+# that is what Serum 1 writes when the folder has never been moved.
+# Windows paths unverified, same reasoning as above.
+_PREFS_PATHS: dict[str, dict[PresetFormat, str]] = {
+    "darwin": {
+        PresetFormat.SERUM1: "~/Library/Preferences/SerumPrefs.json",
+        PresetFormat.SERUM2: "~/Library/Preferences/Serum2Prefs.json",
+    },
+    "win32": {
+        PresetFormat.SERUM1: "~/AppData/Roaming/Xfer/Serum/SerumPrefs.json",
+        PresetFormat.SERUM2: "~/AppData/Roaming/Xfer/Serum2/Serum2Prefs.json",
+    },
+}
+_PREFS_PRESET_KEY = "Serum Presets Path"
+
+
+def _configured_preset_dir(fmt: PresetFormat, platform: str) -> Path | None:
+    """The preset folder Serum itself records, or None if it says nothing.
+
+    Never raises: an absent, unreadable or malformed prefs file is just
+    "no opinion", and the caller falls through to the standard location.
+    """
+    table = _PREFS_PATHS.get(platform)
+    if table is None:
+        return None
+    try:
+        data = json.loads(Path(table[fmt]).expanduser().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    value = data.get(_PREFS_PRESET_KEY) if isinstance(data, dict) else None
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return Path(value.strip())
+
+
+def _holds_preset(directory: Path, suffix: str) -> bool:
+    """True as soon as one preset of that suffix turns up. Stops at the
+    first hit — the factory tree runs to thousands of files."""
+    try:
+        for path in directory.rglob("*"):
+            if path.suffix.lower() == suffix:
+                return True
+    except OSError:
+        return False
+    return False
+
+
+def default_preset_dir(
+    fmt: PresetFormat, platform: str | None = None
+) -> Path | None:
+    """Best guess at where this format's presets live, or None.
+
+    Prefers the folder Serum records in its own prefs over the standard
+    install location. Only returns a directory that exists AND contains
+    at least one preset of that format, so a stale prefs entry or a
+    wrong default reads as "not found" rather than as an empty batch.
+    """
+    platform = platform if platform is not None else sys.platform
+    candidates: list[Path] = []
+    configured = _configured_preset_dir(fmt, platform)
+    if configured is not None:
+        candidates.append(configured)
+    table = _DEFAULT_PRESET_DIRS.get(platform)
+    if table is not None:
+        candidates.append(Path(table[fmt]))
+
+    suffix = suffix_for(fmt).lower()
+    for candidate in candidates:
+        if candidate.is_dir() and _holds_preset(candidate, suffix):
+            return candidate
+    return None
 
 
 def default_plugin_path(fmt: PresetFormat, platform: str | None = None) -> Path | None:
