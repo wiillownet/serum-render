@@ -80,3 +80,44 @@ loky flags the entire executor broken when any worker dies unexpectedly; every r
 Serum 1 and Serum 2 retain internal DSP state (LFO phase, envelope residue, lazy-loaded sample buffers) that `load_preset` / `load_state` does not fully reset, so a preset rendered mid-batch differs from the same preset rendered alone. Measured across 1491 factory presets (2026-05): 97% show audible (max_abs ≥ 0.01) warm-vs-cold variation.
 
 serum-render addresses this with `--deterministic`, which renders every preset in a fresh single-use process — bit-identical across runs and render orders, verified against real Serum 1 + 2. See the README's reproducibility section and `docs/decisions.md` for the probe data (including why in-process resets are not enough for Serum 1).
+
+`--deterministic` removes cross-preset state leakage, which is what the probe measured. It does **not** cover the Serum 2 multisample load race below — that one is inside a single render, so a fresh process does not help.
+
+
+---
+
+## Sample-heavy Serum 2 presets can render partially loaded (both render paths)
+
+**Symptom:** the same preset, rendered twice with identical settings, produces
+two different files. Not a small numerical drift — the two renders diverge
+within the first ~5 samples and the difference can exceed the signal's own peak
+amplitude. A preset that renders at peak 0.25 sometimes comes out at 0.05, and
+one that renders at 0.54 sometimes comes out silent.
+
+**Measured (2026-09-01, Serum 2, Factory/Piano):**
+
+- 10 identical `--deterministic` renders of `PN - Piano Classic Layer`: nine at
+  peak 0.2524, one at 0.0512. Exactly two outcomes, never a gradient.
+- Two `--deterministic` passes over the 12-preset folder: 1–4 files differ per
+  trial. The same folder under `Factory/Instrument` (3 presets, no multisamples)
+  was bit-identical across every trial.
+- The default warm-pool path is affected too, so this is not specific to
+  `--deterministic`.
+
+**Cause:** Serum 2 lazy-loads sample data, and for heavy multisampled
+instruments that load is not always complete when the render starts. The
+0.1-second warmup render in `EngineHost` absorbs the cold-start *level* anomaly
+(see above) but does not guarantee a large multisample set is resident. The
+render then captures a partially-loaded instrument. This is unrelated to
+presets referencing missing sample files — the affected renders logged no
+`can't open` warnings.
+
+**Not fixed.** A longer or content-aware warmup would likely help but has not
+been tested, and no amount of warmup is a guarantee without a signal from the
+plugin that loading finished.
+
+**Detect:** render twice and compare, e.g.
+`cmp a/preset.wav b/preset.wav`, or compare peak amplitudes — the failure mode
+is bimodal and obvious, not subtle. Affected presets are the sample-based ones
+(pianos, guitars, drum kits, orchestral); pure-synthesis presets and all of
+Serum 1 are unaffected.
