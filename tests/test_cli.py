@@ -513,3 +513,86 @@ def test_json_default_plugin_notice_goes_to_stderr(fake_env):
     assert "Using default" in proc.stderr
     assert "Using default" not in proc.stdout
     assert _json_lines(proc.stdout)  # still parses cleanly
+
+
+# ---- --skip-missing-format ------------------------------------------------
+#
+# The common single-synth install: a library holding both formats with only
+# one plugin present. Without the flag cli.py refuses the whole batch, which
+# makes such a library entirely unrenderable.
+
+
+@pytest.fixture
+def mixed_env(tmp_path: Path):
+    """A Serum 1 plugin plus a library holding one preset of each format."""
+    plugin = tmp_path / "Serum.vst"
+    _touch(plugin)
+    presets = tmp_path / "presets"
+    _touch(presets / "one.fxp")
+    _touch(presets / "two.SerumPreset")
+    return plugin, presets, tmp_path / "out"
+
+
+def test_mixed_library_without_the_flag_refuses_the_whole_batch(mixed_env, no_defaults):
+    """Default behaviour is unchanged: a missing plugin fails loudly rather
+    than quietly rendering half a library."""
+    plugin, presets, output = mixed_env
+    result = runner.invoke(app, [str(presets), str(output), "--serum1", str(plugin)])
+    assert result.exit_code == 2
+    assert "--serum2" in result.output
+
+
+def test_skip_missing_format_counts_dropped_presets_in_total(mixed_env, no_defaults):
+    """`total` covers every preset the run reports on, matching how
+    skip-existing skips are already counted inside it."""
+    plugin, presets, output = mixed_env
+    result = runner.invoke(
+        app,
+        [str(presets), str(output), "--serum1", str(plugin),
+         "--skip-missing-format", "--dry-run", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    events = _json_lines(result.stdout)
+    assert len(events) == 1
+    assert events[0]["total"] == 2  # one renderable, one dropped
+
+
+def test_skip_missing_format_reports_dropped_presets_as_skipped(
+    mixed_env, no_defaults, monkeypatch
+):
+    """The dropped presets arrive as ordinary skipped results carrying a
+    reason, so a consumer can tell them from skip-existing skips without a
+    new status value — and `done`'s counts still reconcile."""
+    plugin, presets, output = mixed_env
+    # No plugin to render the .fxp with, so stand in for the pool.
+    monkeypatch.setattr(cli, "iter_jobs", lambda *a, **k: iter([]))
+    result = runner.invoke(
+        app,
+        [str(presets), str(output), "--serum1", str(plugin),
+         "--skip-missing-format", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    events = _json_lines(result.stdout)
+    assert [e["event"] for e in events] == ["start", "result", "done"]
+    assert events[1]["status"] == "skipped"
+    assert events[1]["reason"] == "no_plugin"
+    assert events[1]["path"].endswith("two.SerumPreset")
+    assert events[2]["skipped"] == 1
+
+
+def test_skip_missing_format_still_exits_2_when_nothing_is_renderable(
+    tmp_path: Path, no_defaults
+):
+    """An empty batch is the same misconfiguration the flag tolerates
+    partially — tolerating it completely would exit 0 having done nothing."""
+    plugin = tmp_path / "Serum.vst"
+    _touch(plugin)
+    presets = tmp_path / "presets"
+    _touch(presets / "only.SerumPreset")
+    result = runner.invoke(
+        app,
+        [str(presets), str(tmp_path / "out"), "--serum1", str(plugin),
+         "--skip-missing-format"],
+    )
+    assert result.exit_code == 2
+    assert "nothing to render" in result.output.lower()

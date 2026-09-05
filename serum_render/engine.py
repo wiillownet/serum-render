@@ -202,7 +202,11 @@ def run_job(job: Job) -> dict:
             and job.skip_existing
             and Path(job.output_path).exists()
         ):
-            return {"status": "skipped", "path": job.preset_path}
+            return {
+                "status": "skipped",
+                "path": job.preset_path,
+                "reason": "exists",
+            }
 
         audio = _HOST.render(job)
 

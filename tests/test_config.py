@@ -244,3 +244,60 @@ def test_unknown_platform_returns_none(preset_env):
 def test_suffix_for_round_trips_every_format():
     for fmt in PresetFormat:
         assert format_for_path(Path(f"x{suffix_for(fmt)}")) is fmt
+
+
+# ---- plugin suffix validation ---------------------------------------------
+#
+# Backs the GUI's path check. Reads the same platform knowledge as
+# default_plugin_path so a check and a default cannot disagree.
+
+
+def test_plugin_suffix_differs_per_platform_for_serum1():
+    """Serum 1 is VST2 — a different extension on every platform."""
+    assert config.plugin_suffix_for(PresetFormat.SERUM1, "darwin") == ".vst"
+    assert config.plugin_suffix_for(PresetFormat.SERUM1, "win32") == ".dll"
+    assert config.plugin_suffix_for(PresetFormat.SERUM1, "linux") == ".so"
+
+
+def test_plugin_suffix_is_vst3_everywhere_for_serum2():
+    for platform in ("darwin", "win32", "linux"):
+        assert config.plugin_suffix_for(PresetFormat.SERUM2, platform) == ".vst3"
+
+
+def test_plugin_suffix_unknown_platform_is_none():
+    assert config.plugin_suffix_for(PresetFormat.SERUM1, "testos") is None
+
+
+def test_serum1_never_expects_vst3():
+    """The Serum 1 VST3 silently mis-loads .fxp presets — the failure this
+    table exists to catch when a user browses by hand."""
+    for platform in ("darwin", "win32", "linux"):
+        assert config.plugin_suffix_for(PresetFormat.SERUM1, platform) != ".vst3"
+
+
+def test_plugin_path_accepts_a_macos_bundle_directory(tmp_path):
+    """Both plugin formats are bundles on macOS, so an is_file() check would
+    reject every valid macOS plugin."""
+    bundle = tmp_path / "Serum.vst"
+    bundle.mkdir()
+    assert config.plugin_path_looks_valid(bundle, PresetFormat.SERUM1, "darwin")
+
+
+def test_plugin_path_rejects_the_wrong_extension(tmp_path):
+    wrong = tmp_path / "Serum.vst3"
+    wrong.mkdir()
+    assert not config.plugin_path_looks_valid(wrong, PresetFormat.SERUM1, "darwin")
+    assert config.plugin_path_looks_valid(wrong, PresetFormat.SERUM2, "darwin")
+
+
+def test_plugin_path_rejects_a_missing_file(tmp_path):
+    assert not config.plugin_path_looks_valid(
+        tmp_path / "nope.vst", PresetFormat.SERUM1, "darwin"
+    )
+
+
+def test_plugin_path_on_an_unknown_platform_checks_existence_only(tmp_path):
+    """No expectation to violate, so only existence is enforced."""
+    odd = tmp_path / "Serum.whatever"
+    odd.touch()
+    assert config.plugin_path_looks_valid(odd, PresetFormat.SERUM1, "testos")

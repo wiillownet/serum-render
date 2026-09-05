@@ -30,6 +30,44 @@ _DEFAULT_PLUGIN_PATHS: dict[str, dict[PresetFormat, str]] = {
 }
 
 
+# Expected binary suffix per platform per format, derived from the same
+# knowledge as _DEFAULT_PLUGIN_PATHS above so a check and a default can never
+# disagree. Serum 1 is VST2 (a different extension on every platform); Serum 2
+# is VST3 everywhere. INVARIANT: never `.vst3` for SERUM1 — the Serum 1 VST3
+# silently mis-loads .fxp presets, which is the failure this table exists to
+# catch when a user browses by hand.
+_PLUGIN_SUFFIXES: dict[str, dict[PresetFormat, str]] = {
+    "darwin": {PresetFormat.SERUM1: ".vst", PresetFormat.SERUM2: ".vst3"},
+    "win32": {PresetFormat.SERUM1: ".dll", PresetFormat.SERUM2: ".vst3"},
+    "linux": {PresetFormat.SERUM1: ".so", PresetFormat.SERUM2: ".vst3"},
+}
+
+
+def plugin_suffix_for(fmt: PresetFormat, platform: str | None = None) -> str | None:
+    """Expected binary suffix for a format on a platform, or None if the
+    platform is unknown (in which case callers should not enforce a check)."""
+    platform = platform if platform is not None else sys.platform
+    table = _PLUGIN_SUFFIXES.get(platform)
+    return None if table is None else table[fmt]
+
+
+def plugin_path_looks_valid(
+    path: str | Path, fmt: PresetFormat, platform: str | None = None
+) -> bool:
+    """True when `path` exists and carries the suffix this format expects.
+
+    Existence is `exists()`, not `is_file()`: on macOS both plugin formats are
+    bundles — directories — so an is_file() check rejects every valid macOS
+    plugin. An unknown platform has no expectation to violate, so only
+    existence is checked there.
+    """
+    path = Path(path)
+    if not path.exists():
+        return False
+    suffix = plugin_suffix_for(fmt, platform)
+    return suffix is None or path.suffix.lower() == suffix
+
+
 # Where Serum keeps its factory presets when they have not been moved.
 # The macOS entries are verified against a real install (2026-09-01). The
 # Windows entries are NOT verified on a Windows machine — that is safe

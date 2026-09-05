@@ -62,6 +62,7 @@ A directory containing both `.fxp` and `.SerumPreset` files renders as one mixed
 | `--midi` | — | Render a `.mid` file instead of a single note. |
 | `--workers` | `-1` | Parallel workers; `-1` = `cpu_count - 1`. |
 | `--skip-existing` | off | Skip presets whose output already exists. |
+| `--skip-missing-format` | off | Render what the installed plugins cover instead of refusing the whole batch. |
 | `--no-recurse` | off | Don't descend into subdirectories. |
 | `--dry-run` | off | Print the render plan and exit. |
 | `--json` | off | Emit machine-readable events on stdout (see below). |
@@ -77,7 +78,7 @@ program:
 ```
 {"event":"start","schema":1,"total":4271,"workers":7}
 {"event":"result","status":"ok","path":".../Bass 1.fxp","peak":0.3325}
-{"event":"result","status":"skipped","path":"..."}
+{"event":"result","status":"skipped","path":"...","reason":"exists"}
 {"event":"result","status":"error","path":"...","error":"..."}
 {"event":"done","ok":4268,"skipped":0,"failed":3,"elapsed":612.4}
 ```
@@ -93,6 +94,13 @@ guessing at the shape. And skip any stdout line that fails to parse:
 loky workers inherit the parent's stdout, so a plugin printing from C
 could in principle interleave with the stream — trust the counts in
 `done` over a local tally of `result` events.
+
+A `skipped` result carries a `reason`: `exists` when `--skip-existing`
+found the output already written, or `no_plugin` when
+`--skip-missing-format` dropped a preset whose plugin is not installed.
+Both are counted in `done`'s `skipped`, and both are inside `start`'s
+`total` — `total` covers every preset the run reports on, not just the
+ones it renders.
 
 **The output shape is unstable until 1.0.**
 

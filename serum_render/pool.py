@@ -77,7 +77,7 @@ def render_isolated(
         and job.skip_existing
         and Path(job.output_path).exists()
     ):
-        return {"status": "skipped", "path": job.preset_path}
+        return {"status": "skipped", "path": job.preset_path, "reason": "exists"}
 
     import json
     import subprocess

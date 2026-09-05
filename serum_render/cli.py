@@ -4,6 +4,7 @@ flags beat platform defaults), builds typed Jobs, and drives the pool.
 """
 from __future__ import annotations
 
+import itertools
 import json
 import logging
 import time
@@ -93,6 +94,13 @@ def render(
     midi: Optional[Path] = typer.Option(None, "--midi", help="Path to a .mid file (overrides --note)."),
     workers: int = typer.Option(-1, "--workers", help="Parallel workers. -1 = cpu_count - 1."),
     skip_existing: bool = typer.Option(False, "--skip-existing", help="Skip if output file already exists."),
+    skip_missing_format: bool = typer.Option(
+        False, "--skip-missing-format",
+        help="Render the presets whose plugin is installed instead of refusing "
+             "the whole batch. Presets needing a missing plugin are reported "
+             "as skipped with reason 'no_plugin'. Still exits 2 if nothing is "
+             "renderable.",
+    ),
     deterministic: bool = typer.Option(
         False, "--deterministic",
         help="Render every preset in a fresh single-use process so batch "
@@ -191,6 +199,10 @@ def render(
                 )
 
     missing = discovered_formats - set(plugin_paths)
+    # Presets dropped for want of a plugin. Reported as ordinary skipped
+    # results so `done`'s counts stay reconcilable, distinguished from
+    # skip-existing skips by `reason`.
+    skipped_results: list[dict] = []
     if missing:
         msgs = sorted(
             f"found {_EXT_FOR[m]} files but {_FLAG_FOR[m]} was not provided "
@@ -199,7 +211,27 @@ def render(
         )
         for m in msgs:
             typer.echo(m, err=True)
-        raise typer.Exit(code=2)
+        # Refusing the whole batch is the default on purpose: a typo'd plugin
+        # flag must fail loudly rather than quietly render half a library.
+        if not skip_missing_format:
+            raise typer.Exit(code=2)
+        renderable = [(p, f) for p, f in preset_files if f in plugin_paths]
+        if not renderable:
+            typer.echo(
+                "No discovered preset has an installed plugin; nothing to render.",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+        skipped_results = [
+            {
+                "status": "skipped",
+                "path": str(p.resolve()),
+                "reason": "no_plugin",
+            }
+            for p, f in preset_files
+            if f not in plugin_paths
+        ]
+        preset_files = renderable
 
     # Single-file mode: presets_root=None so {subpath} collapses out.
     # Resolve when a directory so `relative_to` works against the absolute
@@ -245,12 +277,14 @@ def render(
         for (p, preset_fmt), out in zip(preset_files, output_paths)
     ]
 
+    total = len(jobs) + len(skipped_results)
+
     if dry_run:
         if json_out:
             # No separate "plan" event — a start with the total is the
             # same information, and one fewer branch for a consumer.
             _emit({
-                "event": "start", "schema": _JSON_SCHEMA, "total": len(jobs),
+                "event": "start", "schema": _JSON_SCHEMA, "total": total,
                 "workers": resolve_worker_count(workers),
             })
         else:
@@ -283,6 +317,10 @@ def render(
     else:
         result_iter = iter_jobs(jobs, n_workers, serum1_str, serum2_str, sample_rate)
 
+    # The dropped presets are already decided, so they lead the stream and a
+    # consumer sees one result per preset counted in `total`.
+    result_iter = itertools.chain(skipped_results, result_iter)
+
     # --json is tested before --verbose: they are independent flags, and
     # the other order would silently drop the stream when both are set.
     # In verbose mode, per-preset DEBUG logs replace the progress bar so
@@ -292,7 +330,7 @@ def render(
     # the stream.
     if json_out:
         _emit({
-            "event": "start", "schema": _JSON_SCHEMA, "total": len(jobs),
+            "event": "start", "schema": _JSON_SCHEMA, "total": total,
             "workers": n_workers,
         })
         for result in result_iter:
@@ -314,7 +352,7 @@ def render(
             TimeRemainingColumn(),
         ) as progress:
             task_id = progress.add_task(
-                f"Rendering ({n_workers} workers)", total=len(jobs)
+                f"Rendering ({n_workers} workers)", total=total
             )
             for result in result_iter:
                 results.append(result)

@@ -87,4 +87,6 @@ def test_render_isolated_skips_without_spawning(tmp_path, monkeypatch):
 
     monkeypatch.setattr(subprocess, "run", boom)
     result = pool.render_isolated(job, "/Serum.vst", None, 44100, False)
-    assert result == {"status": "skipped", "path": "/p.fxp"}
+    assert result == {
+        "status": "skipped", "path": "/p.fxp", "reason": "exists",
+    }

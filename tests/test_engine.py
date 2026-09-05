@@ -245,7 +245,9 @@ def test_run_job_skip_existing(monkeypatch, tmp_path):
         skip_existing=True,
     )
     result = run_job(job)
-    assert result == {"status": "skipped", "path": "/p.fxp"}
+    assert result == {
+        "status": "skipped", "path": "/p.fxp", "reason": "exists",
+    }
     assert "render_called_with" not in calls  # never touched the engine
 
 
