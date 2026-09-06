@@ -31,6 +31,38 @@ def resolve_worker_count(workers: int) -> int:
     return max(1, workers)
 
 
+# Sample-based Serum 2 presets (Splice packs ship 90-160 MB files) cost
+# ~3 GB of transient memory each to convert. They sort together by folder,
+# so every worker hit one at once and 7 x 3 GB swapped a 16 GB machine.
+_BIG_PRESET_BYTES = 16 * 2**20
+
+
+def spread_big_presets(jobs: list[Job]) -> list[Job]:
+    """Return `jobs` with presets over _BIG_PRESET_BYTES spaced evenly
+    through the list, so the pool converts roughly one at a time.
+    Everything else keeps its order. Files that cannot be stat'ed count
+    as small; the worker reports them.
+
+    ponytail: order heuristic, not a limit. A hard cap needs a
+    cross-process semaphore loky cannot hand to workers.
+    """
+    big, small = [], []
+    for job in jobs:
+        try:
+            is_big = os.path.getsize(job.preset_path) > _BIG_PRESET_BYTES
+        except OSError:
+            is_big = False
+        (big if is_big else small).append(job)
+    if not big or not small:
+        return jobs
+    out: list[Job] = []
+    step = len(small) / len(big)
+    for i, b in enumerate(big):
+        out.extend(small[round(i * step):round((i + 1) * step)])
+        out.append(b)
+    return out
+
+
 def iter_jobs(
     jobs: list[Job],
     workers: int,
@@ -63,7 +95,7 @@ def iter_jobs(
         initargs=(serum1_plugin_path, serum2_plugin_path, sample_rate),
         timeout=300,
     )
-    futures = {executor.submit(run_job, job): job for job in jobs}
+    futures = {executor.submit(run_job, job): job for job in spread_big_presets(jobs)}
     for future in as_completed(futures):
         job = futures[future]
         try:
@@ -175,7 +207,7 @@ def iter_jobs_isolated(
                 sample_rate,
                 keep_audio,
             )
-            for job in jobs
+            for job in spread_big_presets(jobs)
         ]
         for future in as_completed(futures):
             yield future.result()

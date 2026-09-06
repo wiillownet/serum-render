@@ -38,3 +38,30 @@ def test_iter_jobs_raises_worker_died_once(monkeypatch):
     # the shape is checked: whatever arrived before the abort was a result.
     assert set(seen) <= {"ok", "error"}
 
+
+def _jobs(tmp_path, sizes):
+    jobs = []
+    for i, size in enumerate(sizes):
+        p = tmp_path / f"p{i:02d}.fxp"
+        p.write_bytes(b"x" * size)
+        jobs.append(Job(preset_path=str(p), format=PresetFormat.SERUM1))
+    return jobs
+
+
+def test_spread_big_presets_spaces_them_out(tmp_path):
+    big = pool._BIG_PRESET_BYTES + 1
+    jobs = _jobs(tmp_path, [1] * 6 + [big] * 3)
+    out = pool.spread_big_presets(jobs)
+    assert sorted(j.preset_path for j in out) == sorted(j.preset_path for j in jobs)
+    big_positions = [i for i, j in enumerate(out) if j in jobs[6:]]
+    assert big_positions == [2, 5, 8]
+    # Small presets keep their relative order.
+    smalls = [j for j in out if j in jobs[:6]]
+    assert smalls == jobs[:6]
+
+
+def test_spread_big_presets_noop_without_a_mix(tmp_path):
+    small = _jobs(tmp_path, [1, 1])
+    assert pool.spread_big_presets(small) == small
+    missing = [Job(preset_path=str(tmp_path / "gone.fxp"), format=PresetFormat.SERUM1)]
+    assert pool.spread_big_presets(missing) == missing
