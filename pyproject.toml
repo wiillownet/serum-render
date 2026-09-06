@@ -23,6 +23,8 @@ dependencies = [
     "typer",
     "rich",
     "loky",
+    # loky recycles memory-bloated workers only when psutil is importable
+    "psutil",
     "mido",
     "numpy",
     "serum2-preset-loader>=0.1.1",
