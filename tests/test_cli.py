@@ -87,6 +87,36 @@ def test_bad_bit_depth(fake_env, no_defaults):
     assert "must be 16, 24, or 32f" in result.output
 
 
+def test_bad_format(fake_env, no_defaults):
+    plugin, presets, output = fake_env
+    result = runner.invoke(
+        app, [str(presets), str(output), "--serum1", str(plugin), "--format", "mp3"]
+    )
+    assert result.exit_code != 0
+    assert "must be one of wav, flac, ogg, npy" in result.output
+
+
+def test_flac_rejects_32f(fake_env, no_defaults):
+    plugin, presets, output = fake_env
+    result = runner.invoke(
+        app, [str(presets), str(output), "--serum1", str(plugin),
+              "--format", "flac", "--bit-depth", "32f"]
+    )
+    assert result.exit_code != 0
+    assert "flac cannot be written at bit depth '32f'" in result.output
+
+
+@pytest.mark.parametrize("fmt,ext", [("flac", ".flac"), ("ogg", ".ogg"), ("npy", ".npy")])
+def test_format_sets_extension(fake_env, no_defaults, fmt, ext):
+    plugin, presets, output = fake_env
+    result = runner.invoke(
+        app, [str(presets), str(output), "--serum1", str(plugin),
+              "--format", fmt, "--dry-run"]
+    )
+    assert result.exit_code == 0
+    assert f"lead{ext}" in result.output
+
+
 def test_worker_death_aborts_with_summary(fake_env, no_defaults, monkeypatch):
     from serum_render.pool import WorkerDied
 
@@ -105,52 +135,6 @@ def test_worker_death_aborts_with_summary(fake_env, no_defaults, monkeypatch):
     assert events[-1]["ok"] == 1
     assert "worker process died" in events[-1]["aborted"]
     assert "ABORTED" in result.output
-
-
-def test_duration_zero_rejected(fake_env, no_defaults):
-    plugin, presets, output = fake_env
-    result = runner.invoke(
-        app, [str(presets), str(output), "--serum1", str(plugin), "--duration", "0"]
-    )
-    assert result.exit_code != 0
-    assert "duration must be > 0" in result.output
-
-
-def test_tail_zero_accepted_in_dry_run(fake_env, no_defaults):
-    # tail=0 is valid (percussive) and must not error out.
-    plugin, presets, output = fake_env
-    result = runner.invoke(
-        app, [
-            str(presets), str(output),
-            "--serum1", str(plugin),
-            "--tail", "0",
-            "--dry-run",
-        ]
-    )
-    assert result.exit_code == 0, result.output
-
-
-def test_sample_rate_zero_rejected(fake_env, no_defaults):
-    plugin, presets, output = fake_env
-    result = runner.invoke(
-        app, [
-            str(presets), str(output),
-            "--serum1", str(plugin),
-            "--sample-rate", "0",
-        ]
-    )
-    assert result.exit_code != 0
-    # Typer surfaces `min=1` violations with an "Invalid value" range message.
-    assert "Invalid value" in result.output and "sample-rate" in result.output
-
-
-def test_bad_format(fake_env, no_defaults):
-    plugin, presets, output = fake_env
-    result = runner.invoke(
-        app, [str(presets), str(output), "--serum1", str(plugin), "--format", "mp3"]
-    )
-    assert result.exit_code != 0
-    assert "must be wav or npy" in result.output
 
 
 def test_duration_zero_rejected(fake_env, no_defaults):

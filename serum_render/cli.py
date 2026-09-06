@@ -30,6 +30,7 @@ from .discover import (
 )
 from .formats import PresetFormat
 from .jobs import Job
+from .output import FORMATS, check_bit_depth
 from .pool import WorkerDied, iter_jobs, resolve_worker_count
 
 logger = logging.getLogger("serum_render")
@@ -86,7 +87,7 @@ def render(
     tail: float = typer.Option(1.0, min=0.0, help="Release silence in seconds (>= 0)."),
     sample_rate: int = typer.Option(44100, "--sample-rate", min=1, help="Output sample rate in Hz."),
     bit_depth: str = typer.Option("16", "--bit-depth", help="Output bit depth: 16, 24, or 32f."),
-    fmt: str = typer.Option("wav", "--format", help="Output container: wav or npy."),
+    fmt: str = typer.Option("wav", "--format", help="Output format: wav, flac, ogg (Vorbis), or npy (raw float32 array). Bit depth applies to wav and flac; flac takes 16 or 24."),
     filename_template: str = typer.Option(
         "{preset}", "--filename-template",
         help="Filename template. Vars: {preset} {note} {velocity} {folder} {subpath} {subdir} {format}. {subdir} nests output to mirror the preset tree; {format} splits a mixed batch into serum1/ and serum2/ folders.",
@@ -135,8 +136,14 @@ def render(
 
     if bit_depth not in ("16", "24", "32f"):
         raise typer.BadParameter(f"--bit-depth must be 16, 24, or 32f (got {bit_depth!r}).")
-    if fmt not in ("wav", "npy"):
-        raise typer.BadParameter(f"--format must be wav or npy (got {fmt!r}).")
+    if fmt not in FORMATS:
+        raise typer.BadParameter(
+            f"--format must be one of {', '.join(FORMATS)} (got {fmt!r})."
+        )
+    try:
+        check_bit_depth(fmt, bit_depth)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from None
 
     # Path.exists() returns True for VST3 bundle directories on macOS and
     # for plain .vst3 / .dll / .vst files on Windows + macOS — both shapes
@@ -253,7 +260,7 @@ def render(
             raise typer.Exit(code=2) from None
         midi_str = str(midi.resolve())
 
-    extension = ".npy" if fmt == "npy" else ".wav"
+    extension = FORMATS[fmt].extension
     stems = [
         compose_filename(filename_template, p, presets_root, note, velocity, pfmt)
         for p, pfmt in preset_files
@@ -332,7 +339,6 @@ def render(
             aborted.append(str(exc))
 
     result_iter = _until_worker_dies(result_iter)
-
 
     # --json is tested before --verbose: they are independent flags, and
     # the other order would silently drop the stream when both are set.

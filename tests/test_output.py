@@ -48,7 +48,27 @@ def test_unknown_bit_depth_raises(tmp_path: Path):
 
 def test_unknown_format_raises(tmp_path: Path):
     with pytest.raises(ValueError, match="format"):
-        write_audio(_audio(), str(tmp_path / "a.flac"), 44100, "16", "flac")
+        write_audio(_audio(), str(tmp_path / "a.mp3"), 44100, "16", "mp3")
+
+
+@pytest.mark.parametrize("depth,subtype", [("16", "PCM_16"), ("24", "PCM_24")])
+def test_flac_bit_depths(tmp_path: Path, depth, subtype):
+    out = tmp_path / f"a_{depth}.flac"
+    write_audio(_audio(), str(out), 44100, depth, "flac")
+    info = sf.info(str(out))
+    assert (info.format, info.subtype, info.channels) == ("FLAC", subtype, 2)
+
+
+def test_flac_rejects_float(tmp_path: Path):
+    with pytest.raises(ValueError, match="flac cannot be written at bit depth '32f'"):
+        write_audio(_audio(), str(tmp_path / "a.flac"), 44100, "32f", "flac")
+
+
+def test_ogg_is_vorbis_and_ignores_bit_depth(tmp_path: Path):
+    out = tmp_path / "a.ogg"
+    write_audio(_audio(), str(out), 44100, "ignored", "ogg")
+    info = sf.info(str(out))
+    assert (info.format, info.subtype, info.channels) == ("OGG", "VORBIS", 2)
 
 
 # ---- atomic write ---------------------------------------------------------
