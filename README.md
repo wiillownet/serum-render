@@ -56,8 +56,8 @@ A directory containing both `.fxp` and `.SerumPreset` files renders as one mixed
 | `--duration` | `1.0` | Note-on duration (s). |
 | `--tail` | `1.0` | Release silence after note-off (s). |
 | `--sample-rate` | `44100` | Output sample rate. |
-| `--bit-depth` | `16` | `16`, `24`, or `32f`. |
-| `--format` | `wav` | `wav` or `npy` (raw float32 stereo array). |
+| `--bit-depth` | `16` | `16`, `24`, or `32f`. Applies to `wav` and `flac` (`flac` takes `16` or `24`). |
+| `--format` | `wav` | `wav`, `flac`, `ogg` (Vorbis, fixed quality), or `npy` (raw float32 stereo array). |
 | `--filename-template` | `{preset}` | Vars: `{preset}` `{note}` `{velocity}` `{folder}` `{subpath}`. |
 | `--midi` | — | Render a `.mid` file instead of a single note. |
 | `--workers` | `-1` | Parallel workers; `-1` = `cpu_count - 1`. |
@@ -94,6 +94,11 @@ guessing at the shape. And skip any stdout line that fails to parse:
 loky workers inherit the parent's stdout, so a plugin printing from C
 could in principle interleave with the stream — trust the counts in
 `done` over a local tally of `result` events.
+
+If a worker process dies (a plugin crash, an out-of-memory kill), the
+batch stops: `done` still arrives, with an additional `aborted` string
+saying so, and the exit code is `1`. Re-run with `--skip-existing` to
+resume.
 
 A `skipped` result carries a `reason`: `exists` when `--skip-existing`
 found the output already written, or `no_plugin` when

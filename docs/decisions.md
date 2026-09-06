@@ -107,3 +107,39 @@ Two reasons that were considered and are explicitly **not** why, recorded so the
 **Reason:** A user browsing for a plugin by hand can pick the folder above the bundle, or hand the Serum 2 row a Serum 1 `.vst` — and the Serum 1 VST3 in particular *silently mis-loads* `.fxp` presets rather than failing, which is the exact failure this check exists to catch before a 1500-preset batch runs. Putting the table next to `_DEFAULT_PLUGIN_PATHS` means the check and the default read the same platform knowledge and cannot drift apart, which is why this lives in serum-render rather than in the GUI that needs it.
 
 **Alternatives considered:** Implementing the check GUI-side — rejected because the two tables would then encode the same platform facts in two repos. Using `is_file()` — actively wrong: both plugin formats are *bundles* (directories) on macOS, so `is_file()` rejects every valid macOS plugin.
+
+## [2026-09-06] Semantic Versioning, and what counts as observable
+
+**Decision:** Patch releases carry fixes and performance work with no observable change. Minor releases carry any new flag, output format, `--json` event, or changed default; before 1.0 a minor may also break. 1.0 freezes the `--json` shape and the flag set. Purely additive `--json` keys do not bump the schema number. The same policy applies to serum2-preset-loader.
+
+**Reason:** The GUI pins `serum-render` by range and reads the `--json` stream; it needs to know from the version number alone whether a new release can change what it parses. Recorded so the question is not re-derived per release.
+
+## [2026-09-06] Output formats live in serum-render, not the GUI
+
+**Decision:** `--format` gains `flac` (16/24-bit) and `ogg` (Vorbis at libsndfile's default quality, `OGG_COMPRESSION_LEVEL` in output.py, no flag). One table in output.py drives validation, the extension, and the writer. Not MP3, not Opus.
+
+**Reason:** The CLI owns what lands on disk: `--skip-existing`, collision suffixes, atomic writes and reruns all key on the final filename. A GUI-side transcode from WAV would need marker files to keep the CLI's skip predicate honest. libsndfile 1.2.2 already writes both containers, so this costs no dependency.
+
+**Alternatives considered:** Transcoding in serum-render-gui, rejected for the reason above. An OGG quality flag, deferred until someone asks; the constant is named so it can be exposed without a search.
+
+## [2026-09-06] Sample-based presets: spread them out, recycle the worker after
+
+**Decision:** `pool.spread_big_presets` spaces presets over 16 MB evenly through the job list, and `psutil` is a dependency so loky recycles a worker whose memory grew more than 300 MB past its post-first-job baseline.
+
+**Reason:** Converting a 160 MB sample-based `.SerumPreset` (the Splice "Serum 2 Essential Keys" pack) peaks at ~2.9 GB in the worker and leaves ~2.7 GB resident afterwards; CPython does not return the freed float heap to the OS. Those presets sort together by folder, so all seven workers converted one at the same time and a 16 GB machine went 8 GB into swap. Spreading limits how many convert at once; recycling keeps a worker that touched one from carrying 2.7 GB through the rest of a 4000-preset run. Measured on the full library before merging.
+
+**Alternatives considered:** Converting in a short-lived subprocess per preset, which frees the heap but does nothing about seven concurrent conversions and adds ~0.1 s to every Serum 2 preset. A cross-process semaphore for big presets, which loky cannot hand to its workers without reaching into its spawn internals. Rewriting the loader to transform CBOR at the byte level without decoding, the only real fix for the transient peak, far larger than the problem.
+
+## [2026-09-06] A dead worker stops the batch once
+
+**Decision:** `iter_jobs` raises `WorkerDied` on loky's `TerminatedWorkerError`; the CLI prints one ABORTED line, still emits the summary and the `done` event (with an additive `aborted` message), and exits 1.
+
+**Reason:** loky flags the executor broken after one worker dies and fails every pending future with the same message. Before this, a plugin crash on one preset produced thousands of identical per-preset errors, no hint which preset was involved, and a `done` event whose `failed` count looked like a real result. Which preset was running cannot be recovered from loky, so the message says so and points at `--skip-existing`.
+
+## [2026-09-06] Filenames keep letters in any script
+
+**Decision:** `sanitize` keeps `\w` plus `-` instead of `[A-Za-z0-9_-]`.
+
+**Reason:** A CJK-only preset name sanitized to an empty stem and the render was written under its folder's name (`Folder.wav`, then `Folder_1.wav`). Modern filesystems take Unicode filenames; the ASCII restriction bought nothing.
+
+**Alternatives considered:** A hash fallback for an empty `{preset}`, which keeps ASCII output but gives the file a name nobody can read back to the preset.
