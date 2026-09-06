@@ -87,6 +87,63 @@ def test_bad_bit_depth(fake_env, no_defaults):
     assert "must be 16, 24, or 32f" in result.output
 
 
+def test_worker_death_aborts_with_summary(fake_env, no_defaults, monkeypatch):
+    from serum_render.pool import WorkerDied
+
+    def dying_iter_jobs(jobs, *a, **k):
+        yield {"status": "ok", "path": jobs[0].preset_path, "peak": 0.5}
+        raise WorkerDied("A worker process died; 1 preset(s) left unrendered.")
+
+    monkeypatch.setattr(cli, "iter_jobs", dying_iter_jobs)
+    plugin, presets, output = fake_env
+    result = runner.invoke(
+        app, [str(presets), str(output), "--serum1", str(plugin), "--json"]
+    )
+    assert result.exit_code == 1
+    events = _json_lines(result.stdout)
+    assert events[-1]["event"] == "done"
+    assert events[-1]["ok"] == 1
+    assert "worker process died" in events[-1]["aborted"]
+    assert "ABORTED" in result.output
+
+
+def test_duration_zero_rejected(fake_env, no_defaults):
+    plugin, presets, output = fake_env
+    result = runner.invoke(
+        app, [str(presets), str(output), "--serum1", str(plugin), "--duration", "0"]
+    )
+    assert result.exit_code != 0
+    assert "duration must be > 0" in result.output
+
+
+def test_tail_zero_accepted_in_dry_run(fake_env, no_defaults):
+    # tail=0 is valid (percussive) and must not error out.
+    plugin, presets, output = fake_env
+    result = runner.invoke(
+        app, [
+            str(presets), str(output),
+            "--serum1", str(plugin),
+            "--tail", "0",
+            "--dry-run",
+        ]
+    )
+    assert result.exit_code == 0, result.output
+
+
+def test_sample_rate_zero_rejected(fake_env, no_defaults):
+    plugin, presets, output = fake_env
+    result = runner.invoke(
+        app, [
+            str(presets), str(output),
+            "--serum1", str(plugin),
+            "--sample-rate", "0",
+        ]
+    )
+    assert result.exit_code != 0
+    # Typer surfaces `min=1` violations with an "Invalid value" range message.
+    assert "Invalid value" in result.output and "sample-rate" in result.output
+
+
 def test_bad_format(fake_env, no_defaults):
     plugin, presets, output = fake_env
     result = runner.invoke(

@@ -30,7 +30,7 @@ from .discover import (
 )
 from .formats import PresetFormat
 from .jobs import Job
-from .pool import iter_jobs, resolve_worker_count
+from .pool import WorkerDied, iter_jobs, resolve_worker_count
 
 logger = logging.getLogger("serum_render")
 
@@ -321,6 +321,19 @@ def render(
     # consumer sees one result per preset counted in `total`.
     result_iter = itertools.chain(skipped_results, result_iter)
 
+    # A dead worker ends the batch, but the summary (and the `done` event a
+    # --json consumer is waiting on) still goes out with the counts so far.
+    aborted: list[str] = []
+
+    def _until_worker_dies(it):
+        try:
+            yield from it
+        except WorkerDied as exc:
+            aborted.append(str(exc))
+
+    result_iter = _until_worker_dies(result_iter)
+
+
     # --json is tested before --verbose: they are independent flags, and
     # the other order would silently drop the stream when both are set.
     # In verbose mode, per-preset DEBUG logs replace the progress bar so
@@ -363,12 +376,17 @@ def render(
     errors = [r for r in results if r["status"] == "error"]
 
     if json_out:
-        _emit({
+        done = {
             "event": "done", "ok": ok, "skipped": skipped,
             "failed": len(errors), "elapsed": round(time.monotonic() - t0, 3),
-        })
+        }
+        if aborted:
+            done["aborted"] = aborted[0]
+        _emit(done)
     else:
         typer.echo(f"Done: {ok} rendered, {skipped} skipped, {len(errors)} failed.")
     for r in errors:
         typer.echo(f"  FAIL {r.get('path')}: {r.get('error')}", err=True)
-    raise typer.Exit(code=1 if errors else 0)
+    if aborted:
+        typer.echo(f"ABORTED: {aborted[0]}", err=True)
+    raise typer.Exit(code=1 if errors or aborted else 0)

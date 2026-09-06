@@ -9,11 +9,19 @@ from pathlib import Path
 from typing import Iterator
 
 from loky import get_reusable_executor
+from loky.process_executor import TerminatedWorkerError
 
 from .engine import init_worker, run_job
 from .jobs import Job
 
 logger = logging.getLogger("serum_render")
+
+
+class WorkerDied(RuntimeError):
+    """A worker process was killed mid-batch (plugin crash, OOM kill). loky
+    flags the executor broken and fails every pending future with the same
+    message, so the batch stops here instead of reporting thousands of
+    identical errors."""
 
 
 def resolve_worker_count(workers: int) -> int:
@@ -44,11 +52,10 @@ def iter_jobs(
     worker that converted one 160 MB sample-based preset holds ~2.7 GB
     for life otherwise, and seven of them exceed this machine's RAM.
 
-
     If a worker process crashes, loky permanently flags the executor
-    broken — every remaining future raises and is surfaced here as an
-    error result. Re-running with skip_existing=True is idempotent for
-    the jobs that already landed on disk.
+    broken and every remaining future raises: that surfaces once, as
+    WorkerDied. Re-running with skip_existing=True is idempotent for the
+    jobs that already landed on disk.
     """
     executor = get_reusable_executor(
         max_workers=resolve_worker_count(workers),
@@ -61,6 +68,13 @@ def iter_jobs(
         job = futures[future]
         try:
             yield future.result()
+        except TerminatedWorkerError as exc:
+            pending = sum(1 for f in futures if not f.done())
+            raise WorkerDied(
+                "A worker process died (plugin crash or out of memory); "
+                f"{pending} preset(s) left unrendered. Re-run with "
+                f"--skip-existing to resume. ({exc})"
+            ) from exc
         except Exception as exc:
             logger.error("Worker error for %s: %s", job.preset_path, exc)
             yield {"status": "error", "path": job.preset_path, "error": str(exc)}
