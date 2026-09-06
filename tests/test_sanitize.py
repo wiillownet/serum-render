@@ -30,9 +30,15 @@ def test_brackets_and_punctuation():
     assert sanitize("Lead [FP]") == "Lead_FP"
 
 
-def test_unicode_replaced():
-    # Accented chars are not [A-Za-z0-9_-], so they become '_'
-    assert sanitize("café") == "caf"
+def test_unicode_letters_kept():
+    # Letters in any script survive; an ASCII-only class turned a CJK-only
+    # name into an empty stem and the render was named after its folder.
+    assert sanitize("café") == "café"
+    assert sanitize("日本語 ピアノ") == "日本語_ピアノ"
+
+
+def test_symbols_still_replaced():
+    assert sanitize("a★b") == "a_b"
 
 
 def test_mixed_punctuation_collapses():

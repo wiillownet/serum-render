@@ -9,7 +9,10 @@ import mido
 
 from .formats import PresetFormat, format_for_path, format_or_none
 
-_SANITIZE_RE = re.compile(r"[^A-Za-z0-9_-]")
+# \w keeps letters and digits in any script: an ASCII-only class turned a
+# CJK preset name into an empty stem, and the file was named after its
+# folder instead.
+_SANITIZE_RE = re.compile(r"[^\w-]")
 _UNDERSCORE_RUN_RE = re.compile(r"_+")
 
 # Stem truncation cap: leaves 4 chars of headroom for collision suffixes
@@ -59,8 +62,8 @@ def discover_presets(
 def sanitize(value: str) -> str:
     """
     Sanitize a single template-variable value for use in a filename.
-    Keeps [A-Za-z0-9_-]; everything else (spaces, brackets, punctuation,
-    unicode) becomes '_'. Runs of underscores collapse to one, and leading
+    Keeps word characters in any script plus '-'; everything else (spaces,
+    brackets, punctuation, symbols) becomes '_'. Runs of underscores collapse to one, and leading
     and trailing underscores are stripped.
     """
     value = value.strip()
