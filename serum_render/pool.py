@@ -34,8 +34,16 @@ def iter_jobs(
     Submit every job to the reusable pool and yield result dicts as they
     complete (unordered — driven by whichever worker finishes first).
 
-    The 30-minute idle timeout keeps workers warm for long-running
-    embedders; the executor is a process-wide singleton owned by loky.
+    The 5-minute idle timeout keeps workers warm between batches; the
+    executor is a process-wide singleton owned by loky. (loky has no
+    per-job timeout, and workers only notice a dead parent when they pick
+    up their next job, so this is also how long orphans linger.)
+
+    With psutil installed (a dependency), loky recycles a worker whose
+    memory grew more than 300 MB past its post-first-job baseline. A
+    worker that converted one 160 MB sample-based preset holds ~2.7 GB
+    for life otherwise, and seven of them exceed this machine's RAM.
+
 
     If a worker process crashes, loky permanently flags the executor
     broken — every remaining future raises and is surfaced here as an
@@ -46,7 +54,7 @@ def iter_jobs(
         max_workers=resolve_worker_count(workers),
         initializer=init_worker,
         initargs=(serum1_plugin_path, serum2_plugin_path, sample_rate),
-        timeout=1800,
+        timeout=300,
     )
     futures = {executor.submit(run_job, job): job for job in jobs}
     for future in as_completed(futures):

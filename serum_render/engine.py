@@ -11,6 +11,7 @@ serum2_preset_loader load inside EngineHost, in that order.
 from __future__ import annotations
 
 import logging
+import os
 import tempfile
 import threading
 from dataclasses import dataclass
@@ -166,6 +167,9 @@ class EngineHost:
 # and reused for every job.
 
 _HOST: EngineHost | None = None
+# loky workers have no parent-liveness check of their own: a killed CLI
+# leaves them draining the queue, then idling out. Set by init_worker.
+_PARENT_PID: int | None = None
 
 
 def init_worker(
@@ -174,7 +178,8 @@ def init_worker(
     sample_rate: int,
 ) -> None:
     """loky initializer — builds the per-process EngineHost."""
-    global _HOST
+    global _HOST, _PARENT_PID
+    _PARENT_PID = os.getppid()
     _HOST = EngineHost(serum1_plugin_path, serum2_plugin_path, sample_rate)
     logger.debug(
         "Worker initialized (serum1=%s, serum2=%s)",
@@ -194,6 +199,8 @@ def run_job(job: Job) -> dict:
     Per-job errors become {"status": "error", ...} so one bad preset
     doesn't kill the batch.
     """
+    if _PARENT_PID is not None and os.getppid() != _PARENT_PID:
+        os._exit(0)  # parent is gone; nobody will read the result
     try:
         if _HOST is None:
             raise RuntimeError("run_job called before init_worker")

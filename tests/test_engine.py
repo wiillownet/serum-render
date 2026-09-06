@@ -291,6 +291,20 @@ def test_run_job_returns_audio_when_no_output_path(monkeypatch):
     assert result["audio"].shape == (2, 4410)
 
 
+def test_run_job_exits_when_parent_is_gone(monkeypatch):
+    exited: list[int] = []
+
+    def fake_exit(code):
+        exited.append(code)
+        raise SystemExit(code)
+
+    monkeypatch.setattr(engine, "_PARENT_PID", -1)  # never our real parent
+    monkeypatch.setattr(engine.os, "_exit", fake_exit)
+    with pytest.raises(SystemExit):
+        run_job(Job(preset_path="/p.fxp", format=PresetFormat.SERUM1))
+    assert exited == [0]
+
+
 def test_run_job_wraps_render_errors(monkeypatch):
     class ExplodingEngine(FakeEngine):
         def render(self, duration):
