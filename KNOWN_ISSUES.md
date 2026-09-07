@@ -69,15 +69,15 @@ DawDreamer's PyPI wheel is single-arch; an arm64 Python can only `dlopen` arm64 
 
 ---
 
-## A worker crash mid-batch aborts the remaining jobs on that executor
+## A worker crash mid-batch aborts the batch
 
-loky flags the entire executor broken when any worker dies unexpectedly; every remaining job in the batch is reported as an error. Re-run with `--skip-existing` — completed outputs are skipped and only the tail re-renders.
+loky flags the entire executor broken when any worker dies unexpectedly, so the remaining jobs cannot run. Since 0.4.0 the CLI reports this once (an `ABORTED` line on stderr; under `--json`, an `aborted` string on the `done` event) and exits 1 instead of listing every remaining preset as an error. loky cannot say which preset was in flight. Re-run with `--skip-existing` — completed outputs are skipped and only the tail re-renders.
 
 ---
 
 ## Batch renders are not bit-reproducible by default — output depends on preset order
 
-Serum 1 and Serum 2 retain internal DSP state (LFO phase, envelope residue, lazy-loaded sample buffers) that `load_preset` / `load_state` does not fully reset, so a preset rendered mid-batch differs from the same preset rendered alone. Measured across 1491 factory presets (2026-05): 97% show audible (max_abs ≥ 0.01) warm-vs-cold variation.
+Serum 1 and Serum 2 retain internal DSP state (LFO phase, envelope residue, lazy-loaded sample buffers) that `load_preset` / `load_state` does not fully reset, so a preset rendered mid-batch differs from the same preset rendered alone. Measured across 1491 factory presets (2026-05): 97% show audible (max_abs ≥ 0.01) warm-vs-cold variation. Sample-based Serum 2 presets are not exempt: a 90 MB Splice preset rendered cold three times was bit-identical, while two of three warm renders carried audio from sample 0, before the note-on (2026-09-07). Since 0.4.0 loky also recycles a worker whose memory grew past a threshold, so some presets in a default batch happen to render cold; that changes which presets vary, not the guarantee, which remains `--deterministic` only.
 
 serum-render addresses this with `--deterministic`, which renders every preset in a fresh single-use process — bit-identical across runs and render orders, verified against real Serum 1 + 2. See the README's reproducibility section and `docs/decisions.md` for the probe data (including why in-process resets are not enough for Serum 1).
 
