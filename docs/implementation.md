@@ -1,8 +1,7 @@
 # Implementation guide
 
-Implementation context for contributors. `CLAUDE.md` holds the critical
-constraints; this file holds the API contracts and the DawDreamer call
-reference. The code in `serum_render/` is the source of truth for module
+Implementation context for contributors: the critical constraints, the API
+contracts and the DawDreamer call reference. The code in `serum_render/` is the source of truth for module
 structure — this doc doesn't mirror skeletons.
 
 ---

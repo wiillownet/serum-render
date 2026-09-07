@@ -1,9 +1,9 @@
 """
-Verify DawDreamer assumptions from CLAUDE.md before building serum-render.
+Verify the DawDreamer assumptions serum-render's design rests on.
 
 This is a throwaway script. Run once with a working Serum install and a
-preset directory. If any assumption fails, the architecture in CLAUDE.md
-needs adjustment before implementation proceeds.
+preset directory. If any assumption fails, the architecture in
+docs/implementation.md needs adjustment before implementation proceeds.
 
 Three assumptions under test:
   1. load_preset() on an already-loaded graph works without rebuilding
@@ -27,7 +27,7 @@ import time
 import traceback
 from pathlib import Path
 
-# Silence threshold matches CLAUDE.md: -90 dBFS = 16-bit quantization floor.
+# Silence threshold matches config.SILENCE_EPS: -90 dBFS = 16-bit quantization floor.
 SILENCE_EPS = 3.16e-5
 
 
@@ -222,8 +222,8 @@ def main() -> int:
     return 0 if all(results.values()) else 1
 
 
-# Guard is intentional here even though CLAUDE.md forbids it in *library*
-# code: this is a CLI script. Without the guard, loky's spawned workers on
+# Guard is intentional here even though the project rules forbid it in
+# *library* code: this is a CLI script. Without the guard, loky's spawned workers on
 # Windows would re-execute main() on import, causing a fork bomb.
 if __name__ == "__main__":
     sys.exit(main())
