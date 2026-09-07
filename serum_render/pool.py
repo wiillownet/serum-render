@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 import os
-from concurrent.futures import as_completed
+from concurrent.futures import FIRST_COMPLETED, wait
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
 
 from loky import get_reusable_executor
 from loky.process_executor import TerminatedWorkerError
@@ -63,16 +63,49 @@ def spread_big_presets(jobs: list[Job]) -> list[Job]:
     return out
 
 
+def _windowed(submit, jobs, n_workers: int, on_start):
+    """Keep at most n_workers jobs submitted; yield (job, future) as each
+    completes, refilling the window first so no worker idles while the
+    caller handles a result.
+
+    With the window equal to the worker count, a submit only happens when a
+    worker is free, so "submitted" is "started" to within loky's hand-off.
+    That is what makes `on_start` an honest per-job start callback without
+    any worker-side reporting."""
+    it = iter(jobs)
+    pending: dict = {}
+
+    def fill() -> None:
+        while len(pending) < n_workers:
+            job = next(it, None)
+            if job is None:
+                return
+            if on_start is not None:
+                on_start(job)
+            pending[submit(job)] = job
+
+    fill()
+    while pending:
+        done, _ = wait(pending, return_when=FIRST_COMPLETED)
+        for future in done:
+            job = pending.pop(future)
+            fill()
+            yield job, future
+
+
 def iter_jobs(
     jobs: list[Job],
     workers: int,
     serum1_plugin_path: str | None,
     serum2_plugin_path: str | None,
     sample_rate: int,
+    on_start: Callable[[Job], None] | None = None,
 ) -> Iterator[dict]:
     """
-    Submit every job to the reusable pool and yield result dicts as they
-    complete (unordered — driven by whichever worker finishes first).
+    Feed the reusable pool one job per free worker and yield result dicts
+    as they complete (unordered — driven by whichever worker finishes
+    first). `on_start(job)` fires in this process as each job is handed to
+    a free worker.
 
     The 5-minute idle timeout keeps workers warm between batches; the
     executor is a process-wide singleton owned by loky. (loky has no
@@ -89,22 +122,24 @@ def iter_jobs(
     WorkerDied. Re-running with skip_existing=True is idempotent for the
     jobs that already landed on disk.
     """
+    n_workers = resolve_worker_count(workers)
     executor = get_reusable_executor(
-        max_workers=resolve_worker_count(workers),
+        max_workers=n_workers,
         initializer=init_worker,
         initargs=(serum1_plugin_path, serum2_plugin_path, sample_rate),
         timeout=300,
     )
-    futures = {executor.submit(run_job, job): job for job in spread_big_presets(jobs)}
-    for future in as_completed(futures):
-        job = futures[future]
+    finished = 0
+    for job, future in _windowed(
+        lambda j: executor.submit(run_job, j), spread_big_presets(jobs), n_workers, on_start
+    ):
+        finished += 1
         try:
             yield future.result()
         except TerminatedWorkerError as exc:
-            pending = sum(1 for f in futures if not f.done())
             raise WorkerDied(
                 "A worker process died (plugin crash or out of memory); "
-                f"{pending} preset(s) left unrendered. Re-run with "
+                f"{len(jobs) - finished} preset(s) left unrendered. Re-run with "
                 f"--skip-existing to resume. ({exc})"
             ) from exc
         except Exception as exc:
@@ -185,9 +220,11 @@ def iter_jobs_isolated(
     serum2_plugin_path: str | None,
     sample_rate: int,
     keep_audio: bool = False,
+    on_start: Callable[[Job], None] | None = None,
 ) -> Iterator[dict]:
     """Deterministic-mode batch: every job renders in its own single-use
     process, fanned out across `workers` concurrent subprocesses.
+    `on_start(job)` fires as each subprocess is dispatched.
 
     Bit-reproducible by construction — a fresh process is the isolation
     the cold-vs-cold ceiling measured as bit-identical, and the only
@@ -198,16 +235,9 @@ def iter_jobs_isolated(
 
     n_workers = resolve_worker_count(workers)
     with ThreadPoolExecutor(max_workers=n_workers) as pool:
-        futures = [
-            pool.submit(
-                render_isolated,
-                job,
-                serum1_plugin_path,
-                serum2_plugin_path,
-                sample_rate,
-                keep_audio,
-            )
-            for job in spread_big_presets(jobs)
-        ]
-        for future in as_completed(futures):
+        submit = lambda job: pool.submit(  # noqa: E731
+            render_isolated, job, serum1_plugin_path, serum2_plugin_path,
+            sample_rate, keep_audio,
+        )
+        for _job, future in _windowed(submit, spread_big_presets(jobs), n_workers, on_start):
             yield future.result()

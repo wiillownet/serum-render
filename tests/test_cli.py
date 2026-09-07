@@ -117,6 +117,26 @@ def test_format_sets_extension(fake_env, no_defaults, fmt, ext):
     assert f"lead{ext}" in result.output
 
 
+def test_json_emits_job_start_before_each_result(fake_env, no_defaults, monkeypatch):
+    def fake_iter_jobs(jobs, *a, on_start=None, **k):
+        for job in jobs:
+            on_start(job)
+            yield {"status": "ok", "path": job.preset_path, "peak": 0.5}
+
+    monkeypatch.setattr(cli, "iter_jobs", fake_iter_jobs)
+    plugin, presets, output = fake_env
+    result = runner.invoke(
+        app, [str(presets), str(output), "--serum1", str(plugin), "--json"]
+    )
+    assert result.exit_code == 0
+    events = _json_lines(result.stdout)
+    kinds = [e["event"] for e in events]
+    assert kinds == ["start", "job_start", "result", "job_start", "result", "done"]
+    starts = [e["path"] for e in events if e["event"] == "job_start"]
+    results = [e["path"] for e in events if e["event"] == "result"]
+    assert starts == results and all(Path(p).is_absolute() for p in starts)
+
+
 def test_worker_death_aborts_with_summary(fake_env, no_defaults, monkeypatch):
     from serum_render.pool import WorkerDied
 

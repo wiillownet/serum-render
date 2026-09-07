@@ -143,3 +143,11 @@ Two reasons that were considered and are explicitly **not** why, recorded so the
 **Reason:** A CJK-only preset name sanitized to an empty stem and the render was written under its folder's name (`Folder.wav`, then `Folder_1.wav`). Modern filesystems take Unicode filenames; the ASCII restriction bought nothing.
 
 **Alternatives considered:** A hash fallback for an empty `{preset}`, which keeps ASCII output but gives the file a name nobody can read back to the preset.
+
+## [2026-09-07] `job_start` is a parent-side event over a bounded submission window
+
+**Decision:** The pool keeps at most one submitted job per worker (`pool._windowed`) and fires `on_start(job)` in the main process as each job is handed to a free worker. The CLI turns that into `{"event": "job_start", "path": ...}` under `--json`, flushed at submit time, with `path` the same string the `result` carries. No worker id. Schema stays 1 (additive). 0.5.0.
+
+**Reason:** The GUI wants "what is in flight now" and per-preset durations. Workers inherit the parent's stdout, so a worker-side print could interleave with the stream; and loky cannot say which process took a job. With the window equal to the worker count, a submit only happens when a worker is free, so the parent-side event is the real start to within loky's hand-off, and it costs no IPC. Under `--deterministic` the same window drives the subprocess spawns, which is the true start there too.
+
+**Alternatives considered:** A worker-side emit through a queue or per-worker pipe, more machinery for a worker id the GUI said it would not display because it is approximate on the warm pool. Submitting everything up front and emitting on submit, which would report queue position, not start.

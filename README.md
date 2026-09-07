@@ -77,6 +77,7 @@ program:
 
 ```
 {"event":"start","schema":1,"total":4271,"workers":7}
+{"event":"job_start","path":".../Bass 1.fxp"}
 {"event":"result","status":"ok","path":".../Bass 1.fxp","peak":0.3325}
 {"event":"result","status":"skipped","path":"...","reason":"exists"}
 {"event":"result","status":"error","path":"...","error":"..."}
@@ -94,6 +95,11 @@ guessing at the shape. And skip any stdout line that fails to parse:
 loky workers inherit the parent's stdout, so a plugin printing from C
 could in principle interleave with the stream — trust the counts in
 `done` over a local tally of `result` events.
+
+`job_start` fires when a preset is handed to a free worker (jobs are
+submitted one per free worker, so it is the actual start, not a queue
+position). Its `path` is the exact string the matching `result` carries;
+pair them to show what is in flight and how long each preset took.
 
 If a worker process dies (a plugin crash, an out-of-memory kill), the
 batch stops: `done` still arrives, with an additional `aborted` string

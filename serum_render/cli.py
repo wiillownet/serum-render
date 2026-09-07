@@ -113,8 +113,9 @@ def render(
     verbose: bool = typer.Option(False, "--verbose", help="Per-preset status logging."),
     json_out: bool = typer.Option(
         False, "--json",
-        help="Emit one JSON event per line on stdout (start, result per "
-             "preset, done) and move all human-readable output to stderr. "
+        help="Emit one JSON event per line on stdout (start, job_start and "
+             "result per preset, done) and move all human-readable output to "
+             "stderr. "
              "Output shape is unstable until 1.0.",
     ),
 ) -> None:
@@ -315,14 +316,21 @@ def render(
 
     results: list[dict] = []
     t0 = time.monotonic()
+    # Fires when a job is handed to a free worker, so a consumer can show
+    # what is in flight. `path` is the same string the result carries.
+    on_start = None
+    if json_out:
+        on_start = lambda job: _emit({"event": "job_start", "path": job.preset_path})  # noqa: E731
     if deterministic:
         from .pool import iter_jobs_isolated
 
         result_iter = iter_jobs_isolated(
-            jobs, n_workers, serum1_str, serum2_str, sample_rate
+            jobs, n_workers, serum1_str, serum2_str, sample_rate, on_start=on_start
         )
     else:
-        result_iter = iter_jobs(jobs, n_workers, serum1_str, serum2_str, sample_rate)
+        result_iter = iter_jobs(
+            jobs, n_workers, serum1_str, serum2_str, sample_rate, on_start=on_start
+        )
 
     # The dropped presets are already decided, so they lead the stream and a
     # consumer sees one result per preset counted in `total`.

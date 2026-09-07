@@ -65,3 +65,38 @@ def test_spread_big_presets_noop_without_a_mix(tmp_path):
     assert pool.spread_big_presets(small) == small
     missing = [Job(preset_path=str(tmp_path / "gone.fxp"), format=PresetFormat.SERUM1)]
     assert pool.spread_big_presets(missing) == missing
+
+
+
+def test_windowed_keeps_at_most_n_in_flight_and_starts_first():
+    """Futures complete instantly, so the observable invariant is the
+    interleaving: every job's start precedes its yield, and at any point no
+    more than n_workers jobs have started without being yielded."""
+    events: list[tuple[str, str]] = []
+    jobs = [Job(preset_path=f"/p{i}.fxp", format=PresetFormat.SERUM1) for i in range(7)]
+
+    def submit(job):
+        f: Future = Future()
+        f.set_result(job.preset_path)
+        return f
+
+    for job, fut in pool._windowed(submit, jobs, 3, lambda j: events.append(("start", j.preset_path))):
+        events.append(("yield", job.preset_path))
+        assert fut.result() == job.preset_path
+    started = [p for k, p in events if k == "start"]
+    assert started == [j.preset_path for j in jobs]
+    # The first window is exactly n starts before anything is yielded.
+    assert events[:3] == [("start", "/p0.fxp"), ("start", "/p1.fxp"), ("start", "/p2.fxp")]
+    # Before the k-th yield at most n + k jobs have started: the window is
+    # refilled once per completed job, never further ahead.
+    seen_start: set[str] = set()
+    starts = yields = 0
+    for kind, path in events:
+        if kind == "start":
+            starts += 1
+            seen_start.add(path)
+        else:
+            yields += 1
+            assert path in seen_start
+            assert starts <= 3 + yields
+    assert sorted(p for k, p in events if k == "yield") == sorted(started)
