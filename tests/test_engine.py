@@ -326,3 +326,56 @@ def test_run_job_wraps_render_errors(monkeypatch):
     result = run_job(job)
     assert result["status"] == "error"
     assert "plugin exploded" in result["error"]
+
+
+def test_run_job_error_text_is_never_blank(monkeypatch):
+    """str(MemoryError()) is empty; the FAIL line and --json event used to
+    carry a blank error."""
+    class OOMEngine(FakeEngine):
+        def render(self, duration):
+            raise MemoryError()
+
+    calls: dict = {}
+    monkeypatch.setattr(
+        engine,
+        "_HOST",
+        _bare_host(
+            {PresetFormat.SERUM1: engine._FormatEngine(OOMEngine(calls), FakeSynth(calls))}
+        ),
+    )
+    result = run_job(Job(preset_path="/p.fxp", format=PresetFormat.SERUM1))
+    assert result["status"] == "error"
+    assert result["error"] == "MemoryError"
+
+
+def test_corrupt_serum2_preset_is_a_per_preset_error(monkeypatch, tmp_path):
+    """A well-formed envelope around a corrupt payload goes through the real
+    serum2-preset-loader and comes back as one failed preset with a readable
+    message. Before 0.1.4 this read "'int' object has no attribute 'pop'"."""
+    import zstandard
+    from serum2_preset_loader import wrap_xferjson_precompressed
+
+    calls: dict = {}
+    payload = b"\x05"  # CBOR for the integer 5, not a map
+    bad = tmp_path / "corrupt.SerumPreset"
+    bad.write_bytes(
+        wrap_xferjson_precompressed(
+            {"fileType": "SerumPreset"},
+            zstandard.ZstdCompressor().compress(payload),
+            uncompressed_size=len(payload),
+        )
+    )
+    monkeypatch.setattr(
+        engine,
+        "_HOST",
+        _bare_host(
+            {
+                PresetFormat.SERUM2: engine._FormatEngine(
+                    FakeEngine(calls), FakeSynth(calls), tmp_path / "state.bin"
+                )
+            }
+        ),
+    )
+    result = run_job(Job(preset_path=str(bad), format=PresetFormat.SERUM2))
+    assert result["status"] == "error"
+    assert "CBOR payload must be a map" in result["error"]

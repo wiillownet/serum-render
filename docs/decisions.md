@@ -151,3 +151,12 @@ Two reasons that were considered and are explicitly **not** why, recorded so the
 **Reason:** The GUI wants "what is in flight now" and per-preset durations. Workers inherit the parent's stdout, so a worker-side print could interleave with the stream; and loky cannot say which process took a job. With the window equal to the worker count, a submit only happens when a worker is free, so the parent-side event is the real start to within loky's hand-off, and it costs no IPC. Under `--deterministic` the same window drives the subprocess spawns, which is the true start there too.
 
 **Alternatives considered:** A worker-side emit through a queue or per-worker pipe, more machinery for a worker id the GUI said it would not display because it is approximate on the warm pool. Submitting everything up front and emitting on submit, which would report queue position, not start.
+
+## [2026-10-23] Require serum2-preset-loader >=0.1.4,<0.3
+
+**Decision:** The dependency is pinned to `>=0.1.4,<0.3` (was `>=0.1.3`). Error results fall back to the exception's type name when its message is empty. 0.5.1.
+
+**Reason:** 0.1.4 treats preset files as untrusted: a crafted file that used to hang a worker or OOM-kill it (which stops the whole batch, per "A dead worker stops the batch once") now fails as one preset with a `ValueError`. The floor makes that protection a guarantee rather than a matter of what happens to be installed. The upper bound follows the shared versioning policy: before 1.0 a minor release may break, so 0.3 must be tested before it is allowed. `str(MemoryError())` is empty, which left FAIL lines and `--json` `error` fields blank.
+
+**Alternatives considered:** Keeping the open-ended pin, which would install an untested breaking 0.3.0. Catching specific library exception types, which isn't needed: `run_job` already turns any exception into a per-preset error.
+

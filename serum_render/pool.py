@@ -11,7 +11,7 @@ from typing import Callable, Iterator
 from loky import get_reusable_executor
 from loky.process_executor import TerminatedWorkerError
 
-from .engine import init_worker, run_job
+from .engine import error_text, init_worker, run_job
 from .jobs import Job
 
 logger = logging.getLogger("serum_render")
@@ -143,8 +143,8 @@ def iter_jobs(
                 f"--skip-existing to resume. ({exc})"
             ) from exc
         except Exception as exc:
-            logger.error("Worker error for %s: %s", job.preset_path, exc)
-            yield {"status": "error", "path": job.preset_path, "error": str(exc)}
+            logger.error("Worker error for %s: %s", job.preset_path, error_text(exc))
+            yield {"status": "error", "path": job.preset_path, "error": error_text(exc)}
 
 
 def render_isolated(
