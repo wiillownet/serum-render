@@ -25,6 +25,13 @@ from .output import write_audio
 logger = logging.getLogger("serum_render")
 
 
+def error_text(exc: BaseException) -> str:
+    """The message for an ``error`` result. ``str(MemoryError())`` is empty,
+    which left FAIL lines and ``--json`` events with a blank error; fall back
+    to the exception's type name."""
+    return str(exc) or type(exc).__name__
+
+
 @dataclass
 class _FormatEngine:
     """One DawDreamer RenderEngine + synth for one preset format.
@@ -240,5 +247,5 @@ def run_job(job: Job) -> dict:
             "audio": audio,
         }
     except Exception as exc:
-        logger.warning("Failed to render %s: %s", job.preset_path, exc)
-        return {"status": "error", "path": job.preset_path, "error": str(exc)}
+        logger.warning("Failed to render %s: %s", job.preset_path, error_text(exc))
+        return {"status": "error", "path": job.preset_path, "error": error_text(exc)}
