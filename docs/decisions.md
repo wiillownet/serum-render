@@ -160,3 +160,9 @@ Two reasons that were considered and are explicitly **not** why, recorded so the
 
 **Alternatives considered:** Keeping the open-ended pin, which would install an untested breaking 0.3.0. Catching specific library exception types, which isn't needed: `run_job` already turns any exception into a per-preset error.
 
+
+## [2026-10-25] Allow serum2-preset-loader 0.3
+
+**Decision:** The dependency is widened to `>=0.1.4,<0.4`. 0.5.2.
+
+**Reason:** 0.2.0 and 0.3.0 only add API (a preset writer and a parameter table); `convert_preset_file`, the call serum-render makes, produces the same bytes (its body was split out to share with the new `convert_preset_tree`). `wrap_xferjson_precompressed`, used only in tests, now refuses NaN in metadata. The suite passes against 0.3.0. The upper bound stays one minor ahead, per the versioning policy.
