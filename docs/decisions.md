@@ -166,3 +166,11 @@ Two reasons that were considered and are explicitly **not** why, recorded so the
 **Decision:** The dependency is widened to `>=0.1.4,<0.4`. 0.5.2.
 
 **Reason:** 0.2.0 and 0.3.0 only add API (a preset writer and a parameter table); `convert_preset_file`, the call serum-render makes, produces the same bytes (its body was split out to share with the new `convert_preset_tree`). `wrap_xferjson_precompressed`, used only in tests, now refuses NaN in metadata. The suite passes against 0.3.0. The upper bound stays one minor ahead, per the versioning policy.
+
+## [2026-10-25] Require serum2-preset-loader >=0.4,<0.5
+
+**Decision:** The dependency moves to `>=0.4,<0.5`. 0.5.3, a patch.
+
+**Reason:** 0.4.0 fixes the converter stamping version 10.0 on every Serum 2 preset, which made Serum skip its own migration for presets saved before 2.1.4 (most factory presets), so those rendered differently from Serum's own load (FX Distortion Freq, ModSlot output, behaviour-compat flags). The floor guarantees the fix, as the 0.1.4 floor did. `convert_preset_file`, the call serum-render makes, keeps its signature. A patch, not a minor: no flag, output format or `--json` field changes (only the rendered audio of affected presets, which now matches Serum), and serum-render-gui's `<0.6` pin picks it up without a GUI release.
+
+**Alternatives considered:** Only widening to `<0.5` (an existing install could keep 0.3.0 and the bug). 0.6.0 (the GUI would need its own release to get the fix).
