@@ -76,9 +76,10 @@ human-readable line to stderr, for driving serum-render from another
 program:
 
 ```
-{"event":"start","schema":1,"total":4271,"workers":7}
+{"event":"start","schema":1,"total":4271,"workers":7,"provenance":{"started":"2026-10-26T20:02:37+00:00","serum_render":"0.6.0","serum2_preset_loader":"0.4.0","plugins":{"serum1":"1.368","serum2":"2.1.5"}}}
 {"event":"job_start","path":".../Bass 1.fxp"}
-{"event":"result","status":"ok","path":".../Bass 1.fxp","peak":0.3325}
+{"event":"result","status":"ok","path":".../Bass 1.fxp","peak":0.3325,"preset_version":null}
+{"event":"result","status":"ok","path":".../Lead.SerumPreset","peak":0.2693,"preset_version":"2.0.11"}
 {"event":"result","status":"skipped","path":"...","reason":"exists"}
 {"event":"result","status":"error","path":"...","error":"..."}
 {"event":"done","ok":4268,"skipped":0,"failed":3,"elapsed":612.4}
@@ -112,6 +113,31 @@ found the output already written, or `no_plugin` when
 Both are counted in `done`'s `skipped`, and both are inside `start`'s
 `total` — `total` covers every preset the run reports on, not just the
 ones it renders.
+
+`provenance` names the versions that made the run. A plugin version is
+read from the bundle's `Info.plist` on macOS and is `null` elsewhere. An
+`ok` result's `preset_version` is the Serum version the preset was saved
+with (`null` for Serum 1). When the preset file's header names a different
+version than its body, the result also carries `preset_header_version`
+and `"preset_version_mismatch": true`. If the version can't be read, the
+render still goes ahead: `preset_version` is `null` and
+`preset_version_error` says why.
+
+### Provenance log
+
+Every run, with or without `--json`, appends one line per written file
+to `serum-render-provenance.jsonl` in the output folder: the file's path
+relative to that folder, the preset, its version fields and the run's
+`provenance`. A run that writes no files leaves no log. To find the files
+a given loader made:
+
+```
+grep '"serum2_preset_loader": "0.4.0"' out/serum-render-provenance.jsonl
+```
+
+A re-render of the same file appends a new line, so the last line for an
+`output` describes the file on disk. A file with no line at all predates
+the log.
 
 **The output shape is unstable until 1.0.**
 

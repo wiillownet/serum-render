@@ -33,6 +33,7 @@ from .formats import PresetFormat
 from .jobs import Job
 from .output import FORMATS, check_bit_depth
 from .pool import WorkerDied, iter_jobs, resolve_worker_count
+from .provenance import PROVENANCE_FILE, run_provenance
 
 logger = logging.getLogger("serum_render")
 
@@ -181,6 +182,7 @@ def render(
             _emit({
                 "event": "start", "schema": _JSON_SCHEMA, "total": 0,
                 "workers": resolve_worker_count(workers),
+                "provenance": run_provenance({}),
             })
             _emit({
                 "event": "done", "ok": 0, "skipped": 0, "failed": 0,
@@ -287,6 +289,7 @@ def render(
     ]
 
     total = len(jobs) + len(skipped_results)
+    provenance = run_provenance(plugin_paths)
 
     if dry_run:
         if json_out:
@@ -294,7 +297,7 @@ def render(
             # same information, and one fewer branch for a consumer.
             _emit({
                 "event": "start", "schema": _JSON_SCHEMA, "total": total,
-                "workers": resolve_worker_count(workers),
+                "workers": resolve_worker_count(workers), "provenance": provenance,
             })
         else:
             typer.echo(f"Would render {len(jobs)} preset(s):")
@@ -321,6 +324,7 @@ def render(
         if PresetFormat.SERUM2 in plugin_paths
         else None
     )
+    output_for ={j.preset_path: j.output_path for j in jobs}
 
     results: list[dict] = []
     t0 = time.monotonic()
@@ -356,6 +360,44 @@ def render(
 
     result_iter = _until_worker_dies(result_iter)
 
+    # One self-contained line per written file, appended as results land, so
+    # an aborted run still records what it wrote and one grep answers "which
+    # files came from loader X" across every run in this folder. Opened on
+    # the first written file, so a run that writes nothing leaves no log. A
+    # log that can't be written warns once and stops logging; it never costs
+    # the batch its remaining renders or its `done` event.
+    def _record_provenance(it):
+        log = None
+        try:
+            for result in it:
+                if result["status"] == "ok" and log is not False:
+                    line = {
+                        "output": str(Path(output_for[result["path"]]).relative_to(output)),
+                        "preset": result["path"],
+                        **{k: v for k, v in result.items() if k.startswith("preset_")},
+                        **provenance,
+                    }
+                    try:
+                        if log is None:
+                            log = open(output / PROVENANCE_FILE, "a", encoding="utf-8")
+                        log.write(json.dumps(line) + "\n")
+                        log.flush()
+                    except OSError as exc:
+                        typer.echo(
+                            f"Warning: provenance log not written, "
+                            f"{output / PROVENANCE_FILE}: {exc}",
+                            err=True,
+                        )
+                        if log:
+                            log.close()
+                        log = False
+                yield result
+        finally:
+            if log:
+                log.close()
+
+    result_iter = _record_provenance(result_iter)
+
     # --json is tested before --verbose: they are independent flags, and
     # the other order would silently drop the stream when both are set.
     # In verbose mode, per-preset DEBUG logs replace the progress bar so
@@ -366,7 +408,7 @@ def render(
     if json_out:
         _emit({
             "event": "start", "schema": _JSON_SCHEMA, "total": total,
-            "workers": n_workers,
+            "workers": n_workers, "provenance": provenance,
         })
         for result in result_iter:
             results.append(result)
