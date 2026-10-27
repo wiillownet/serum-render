@@ -24,7 +24,10 @@ def _state(meta: dict, payload: bytes) -> bytes:
 
 # Header lengths on every residue mod 3, so the prefix rounding is exercised.
 @pytest.mark.parametrize("pad", ["", "x", "xx"])
-@pytest.mark.parametrize("payload", [b"", b"\x00" * 8, bytes(range(256)) * 400])
+# ids: the default id embeds the bytes, and Windows rejects the 100 KB one in
+# PYTEST_CURRENT_TEST (env vars cap at 32767 chars).
+@pytest.mark.parametrize("payload", [b"", b"\x00" * 8, bytes(range(256)) * 400],
+                         ids=lambda b: f"{len(b)}B")
 def test_state_metadata_reads_header_from_prefix(pad, payload):
     meta = {"component": "processor", "productVersion": "2.1.3", "pad": pad}
     assert provenance._state_metadata(_state(meta, payload)) == meta
