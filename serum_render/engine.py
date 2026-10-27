@@ -21,6 +21,7 @@ from .config import SILENCE_EPS
 from .formats import PresetFormat
 from .jobs import Job
 from .output import write_audio
+from .provenance import preset_versions
 
 logger = logging.getLogger("serum_render")
 
@@ -145,7 +146,9 @@ class EngineHost:
         return set(self._engines)
 
     def render(self, job: Job):
-        """Render one Job, returning (channels, samples) float32 audio.
+        """Render one Job, returning ``(audio, versions)``: (channels,
+        samples) float32 audio and the preset's provenance fields
+        (provenance.preset_versions; ``preset_version`` None for Serum 1).
 
         Raises on failure — error-dict wrapping is the pool path's
         concern (run_job), not the engine's.
@@ -174,13 +177,26 @@ class EngineHost:
         import numpy as np
 
         if fmt is PresetFormat.SERUM1:
+            versions: dict = {"preset_version": None}
             fe.synth.load_preset(job.preset_path)
         else:
-            from serum2_preset_loader import convert_preset_file
+            from serum2_preset_loader import convert_preset_file, read_preset_metadata
 
+            state = convert_preset_file(job.preset_path)
             # write_bytes (not append) so blob-size variance across
             # presets can't leave stale tail bytes from a larger blob.
-            fe.state_path.write_bytes(convert_preset_file(job.preset_path))
+            fe.state_path.write_bytes(state)
+            # Provenance must not cost a render: an unreadable version is
+            # logged and recorded as an error field, and the render goes on.
+            try:
+                versions = preset_versions(state, read_preset_metadata(job.preset_path))
+            except (OSError, ValueError) as exc:
+                logger.warning(
+                    "Preset version not read for %s: %s", job.preset_path, error_text(exc)
+                )
+                versions = {"preset_version": None, "preset_version_error": error_text(exc)}
+            # Don't hold a sample-based preset's state through the render.
+            del state
             fe.synth.load_state(str(fe.state_path))
 
         if job.midi_path is not None:
@@ -199,7 +215,7 @@ class EngineHost:
         if np.max(np.abs(audio)) < SILENCE_EPS:
             logger.warning("Silent output for preset: %s", job.preset_path)
 
-        return audio
+        return audio, versions
 
 
 # ---- loky worker glue -------------------------------------------------
@@ -255,7 +271,7 @@ def run_job(job: Job) -> dict:
                 "reason": "exists",
             }
 
-        audio = _HOST.render(job)
+        audio, versions = _HOST.render(job)
 
         import numpy as np
 
@@ -272,11 +288,12 @@ def run_job(job: Job) -> dict:
                 job.bit_depth,
                 job.output_format,
             )
-            return {"status": "ok", "path": job.preset_path, "peak": peak}
+            return {"status": "ok", "path": job.preset_path, "peak": peak, **versions}
         return {
             "status": "ok",
             "path": job.preset_path,
             "peak": peak,
+            **versions,
             "audio": audio,
         }
     except Exception as exc:

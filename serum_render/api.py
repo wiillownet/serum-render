@@ -127,7 +127,7 @@ class Renderer:
                     f"{result.get('error')}"
                 )
             return result["audio"]
-        return self._host.render(job)
+        return self._host.render(job)[0]
 
 
 class ParallelRenderer:

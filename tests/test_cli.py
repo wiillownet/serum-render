@@ -137,6 +137,76 @@ def test_json_emits_job_start_before_each_result(fake_env, no_defaults, monkeypa
     assert starts == results and all(Path(p).is_absolute() for p in starts)
 
 
+def test_provenance_in_start_event_and_folder_log(fake_env, no_defaults, monkeypatch):
+    def fake_iter_jobs(jobs, *a, on_start=None, **k):
+        yield {"status": "ok", "path": jobs[0].preset_path, "peak": 0.5,
+               "preset_version": "2.1.3", "preset_header_version": "2.1.4",
+               "preset_version_mismatch": True}
+        yield {"status": "error", "path": jobs[1].preset_path, "error": "boom"}
+
+    monkeypatch.setattr(cli, "iter_jobs", fake_iter_jobs)
+    plugin, presets, output = fake_env
+    result = runner.invoke(
+        app, [str(presets), str(output), "--serum1", str(plugin), "--json"]
+    )
+    events = _json_lines(result.stdout)
+    prov = events[0]["provenance"]
+    assert set(prov) == {"started", "serum_render", "serum2_preset_loader", "plugins"}
+    assert set(prov["plugins"]) == {"serum1"}
+    assert events[1]["preset_version_mismatch"] is True
+
+    # Only the written file gets a line; it carries the run fields too.
+    lines = [json.loads(s) for s in (output / "serum-render-provenance.jsonl").read_text().splitlines()]
+    assert len(lines) == 1
+    assert lines[0]["preset"] == events[1]["path"]
+    assert not Path(lines[0]["output"]).is_absolute()
+    assert (output / lines[0]["output"]).parent.is_dir()
+    assert lines[0]["preset_header_version"] == "2.1.4"
+    assert lines[0]["serum_render"] == prov["serum_render"]
+
+    # A second run appends rather than replacing.
+    runner.invoke(app, [str(presets), str(output), "--serum1", str(plugin), "--json"])
+    assert len((output / "serum-render-provenance.jsonl").read_text().splitlines()) == 2
+
+
+def test_no_provenance_log_when_nothing_is_written(fake_env, no_defaults, monkeypatch):
+    def failing_iter_jobs(jobs, *a, **k):
+        for job in jobs:
+            yield {"status": "error", "path": job.preset_path, "error": "boom"}
+
+    monkeypatch.setattr(cli, "iter_jobs", failing_iter_jobs)
+    plugin, presets, output = fake_env
+    runner.invoke(app, [str(presets), str(output), "--serum1", str(plugin)])
+    assert output.is_dir()
+    assert not (output / "serum-render-provenance.jsonl").exists()
+
+
+def test_unwritable_provenance_log_warns_and_finishes(fake_env, no_defaults, monkeypatch):
+    def fake_iter_jobs(jobs, *a, **k):
+        for job in jobs:
+            yield {"status": "ok", "path": job.preset_path, "peak": 0.5, "preset_version": None}
+
+    monkeypatch.setattr(cli, "iter_jobs", fake_iter_jobs)
+    plugin, presets, output = fake_env
+    (output / "serum-render-provenance.jsonl").mkdir(parents=True)  # open() fails
+    result = runner.invoke(
+        app, [str(presets), str(output), "--serum1", str(plugin), "--json"]
+    )
+    assert result.exit_code == 0
+    assert result.stderr.count("provenance log not written") == 1
+    events = _json_lines(result.stdout)
+    assert [e["event"] for e in events].count("result") == 2
+    assert events[-1]["event"] == "done" and events[-1]["ok"] == 2
+
+
+def test_dry_run_start_carries_provenance(fake_env, no_defaults):
+    plugin, presets, output = fake_env
+    result = runner.invoke(
+        app, [str(presets), str(output), "--serum1", str(plugin), "--json", "--dry-run"]
+    )
+    assert set(_json_lines(result.stdout)[0]["provenance"]["plugins"]) == {"serum1"}
+
+
 def test_worker_death_aborts_with_summary(fake_env, no_defaults, monkeypatch):
     from serum_render.pool import WorkerDied
 

@@ -172,6 +172,13 @@ def test_serum2_dispatch_round_trips_state_blob(monkeypatch, tmp_path):
         return fake_blob
 
     monkeypatch.setattr(spl, "convert_preset_file", fake_convert)
+    monkeypatch.setattr(spl, "read_preset_metadata", lambda path: {"productVersion": "2.1.3"})
+
+    def fake_versions(state, header):
+        calls["versions_called_with"] = (state, header)
+        return {"preset_version": "2.1.3"}
+
+    monkeypatch.setattr(engine, "preset_versions", fake_versions)
 
     host = _bare_host(
         {
@@ -186,13 +193,36 @@ def test_serum2_dispatch_round_trips_state_blob(monkeypatch, tmp_path):
         duration=0.1,
         tail=0.1,
     )
-    host.render(job)
+    _audio, versions = host.render(job)
 
+    assert versions == {"preset_version": "2.1.3"}
+    assert calls["versions_called_with"] == (fake_blob, {"productVersion": "2.1.3"})
     assert calls.get("convert_called_with") == "/some/preset.SerumPreset"
     assert calls.get("load_state_called_with") == str(state_path)
     assert "load_preset_called_with" not in calls
     assert state_path.read_bytes() == fake_blob
     assert calls["render_called_with"] == pytest.approx(0.2)
+
+
+def test_unreadable_preset_version_does_not_fail_the_render(monkeypatch, tmp_path):
+    import serum2_preset_loader as spl
+
+    calls: dict = {}
+    monkeypatch.setattr(spl, "convert_preset_file", lambda path: b"\x00STATE")
+    monkeypatch.setattr(spl, "read_preset_metadata", lambda path: {})
+    host = _bare_host(
+        {
+            PresetFormat.SERUM2: engine._FormatEngine(
+                FakeEngine(calls), FakeSynth(calls), state_path=tmp_path / "state.bin"
+            )
+        }
+    )
+    job = Job(preset_path="/p.SerumPreset", format=PresetFormat.SERUM2, duration=0.1, tail=0.1)
+    _audio, versions = host.render(job)
+
+    assert versions["preset_version"] is None
+    assert "state layout changed" in versions["preset_version_error"]
+    assert calls.get("load_state_called_with") == str(tmp_path / "state.bin")
 
 
 def test_serum1_dispatch_calls_load_preset():
