@@ -139,6 +139,16 @@ A re-render of the same file appends a new line, so the last line for an
 `output` describes the file on disk. A file with no line at all predates
 the log.
 
+To check a whole folder against the versions installed now (and,
+optionally, that every preset in a list got a line), run from a checkout:
+
+```
+.venv/bin/python scripts/verify_provenance.py out/ [presets.txt]
+```
+
+It exits 1 on a version mismatch, a flagged preset, a listed preset with
+no line, or a logged file that is missing.
+
 **The output shape is unstable until 1.0.**
 
 ## Library API
