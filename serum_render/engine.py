@@ -25,6 +25,37 @@ from .output import write_audio
 logger = logging.getLogger("serum_render")
 
 
+MIN_SERUM2_LOADER = (0, 4)
+
+
+class LoaderVersionError(RuntimeError):
+    """serum2-preset-loader is missing or older than MIN_SERUM2_LOADER."""
+
+
+def check_serum2_loader() -> None:
+    """Refuse serum2-preset-loader older than 0.4. Earlier versions stamp
+    every converted state as 2.1.4 / format 10.0, so Serum skips its own
+    migration and presets saved before 2.1.4 render wrong. Reads the
+    installed version from metadata, so the package is not imported."""
+    import re
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        found = version("serum2-preset-loader")
+    except PackageNotFoundError:
+        raise LoaderVersionError(
+            "serum2-preset-loader is not installed; run "
+            "`pip install 'serum2-preset-loader>=0.4,<0.5'`"
+        ) from None
+    m = re.match(r"(\d+)\.(\d+)", found)
+    if m is None or (int(m[1]), int(m[2])) < MIN_SERUM2_LOADER:
+        raise LoaderVersionError(
+            f"serum2-preset-loader {found} is too old: versions before 0.4 "
+            "render Serum 2 presets saved before 2.1.4 wrong. Run "
+            "`pip install 'serum2-preset-loader>=0.4,<0.5'`"
+        )
+
+
 def error_text(exc: BaseException) -> str:
     """The message for an ``error`` result. ``str(MemoryError())`` is empty,
     which left FAIL lines and ``--json`` events with a blank error; fall back
@@ -75,6 +106,8 @@ class EngineHost:
                 "EngineHost requires at least one of serum1_plugin_path or "
                 "serum2_plugin_path"
             )
+        if serum2_plugin_path is not None:
+            check_serum2_loader()
 
         import dawdreamer as daw  # MUST be first non-stdlib import
         import numpy  # noqa: F401  pin load order ahead of soundfile

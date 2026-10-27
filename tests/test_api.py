@@ -34,6 +34,16 @@ def test_parallel_renderer_build_jobs_outside_context(tmp_path):
         r._build_jobs([Path("p.fxp")])
 
 
+def test_parallel_renderer_refuses_old_serum2_loader_at_entry(tmp_path, monkeypatch):
+    """Caught in the parent, not as a loky worker crash."""
+    from serum_render.engine import LoaderVersionError
+
+    monkeypatch.setattr("importlib.metadata.version", lambda name: "0.1.3")
+    cfg = RenderConfig(serum2_plugin_path=_fake_plugin(tmp_path, "Serum2.vst3"))
+    with pytest.raises(LoaderVersionError, match="0.1.3 is too old"):
+        ParallelRenderer(cfg, workers=1).__enter__()
+
+
 # ---- entry validation -------------------------------------------------------
 
 

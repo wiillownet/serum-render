@@ -84,6 +84,21 @@ def test_init_worker_rejects_all_none_paths():
         init_worker(None, None, 44100)
 
 
+@pytest.mark.parametrize("found", ["0.1.3", "0.3.0", "0.3.9.post1"])
+def test_enginehost_rejects_old_serum2_loader(monkeypatch, found):
+    """Loaders before 0.4 stamp every state as 2.1.4, so Serum skips its
+    migration for older presets. Fail before the dawdreamer import."""
+    monkeypatch.setattr("importlib.metadata.version", lambda name: found)
+    with pytest.raises(engine.LoaderVersionError, match=f"{found} is too old"):
+        EngineHost(None, "/anywhere/Serum2.vst3", 44100)
+
+
+@pytest.mark.parametrize("found", ["0.4.0", "0.5.0", "0.10.0", "1.0.0"])
+def test_check_serum2_loader_accepts_0_4_and_later(monkeypatch, found):
+    monkeypatch.setattr("importlib.metadata.version", lambda name: found)
+    engine.check_serum2_loader()
+
+
 # ---- render dispatch guards ---------------------------------------------
 
 

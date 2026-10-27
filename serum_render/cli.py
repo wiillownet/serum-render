@@ -28,6 +28,7 @@ from .discover import (
     get_midi_duration,
     resolve_output_paths,
 )
+from .engine import LoaderVersionError, check_serum2_loader
 from .formats import PresetFormat
 from .jobs import Job
 from .output import FORMATS, check_bit_depth
@@ -300,6 +301,13 @@ def render(
             for j in jobs:
                 typer.echo(f"  {j.preset_path}  ->  {j.output_path}")
         raise typer.Exit(code=0)
+
+    if PresetFormat.SERUM2 in plugin_paths:
+        try:
+            check_serum2_loader()
+        except LoaderVersionError as exc:
+            typer.echo(f"Error: {exc}", err=True)
+            raise typer.Exit(code=2) from None
 
     output.mkdir(parents=True, exist_ok=True)
     n_workers = resolve_worker_count(workers)

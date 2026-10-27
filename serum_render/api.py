@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Iterable, Iterator
 
 from .config import RenderConfig
 from .discover import get_midi_duration
-from .engine import EngineHost
+from .engine import EngineHost, check_serum2_loader
 from .formats import PresetFormat, format_for_path
 from .jobs import Job
 
@@ -27,6 +27,10 @@ def _validate_entry(config: RenderConfig) -> float | None:
     for path in (config.serum1_plugin_path, config.serum2_plugin_path):
         if path is not None and not Path(path).exists():
             raise FileNotFoundError(f"Plugin not found: {path}")
+    # Here, not only in EngineHost: ParallelRenderer workers and deterministic
+    # subprocesses would otherwise surface it as a crash per worker or per job.
+    if config.serum2_plugin_path is not None:
+        check_serum2_loader()
     if config.midi_path is not None:
         if not Path(config.midi_path).exists():
             raise FileNotFoundError(f"MIDI file not found: {config.midi_path}")

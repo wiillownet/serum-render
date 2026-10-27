@@ -355,6 +355,20 @@ def test_missing_serum2_plugin(tmp_path, no_defaults):
     assert "Plugin not found" in result.output
 
 
+def test_old_serum2_loader_exits_before_rendering(tmp_path, no_defaults, monkeypatch):
+    plugin = tmp_path / "Serum2.vst3"
+    _touch(plugin)
+    presets = tmp_path / "presets"
+    _touch(presets / "a.SerumPreset")
+    monkeypatch.setattr("importlib.metadata.version", lambda name: "0.1.3")
+    result = runner.invoke(
+        app, [str(presets), str(tmp_path / "out"), "--serum2", str(plugin)]
+    )
+    assert result.exit_code == 2
+    assert "0.1.3 is too old" in result.output
+    assert not (tmp_path / "out").exists()
+
+
 def test_missing_presets(tmp_path, no_defaults):
     plugin = tmp_path / "Serum.vst"
     _touch(plugin)
