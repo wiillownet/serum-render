@@ -27,6 +27,8 @@ class Job:
     bit_depth: str = "16"  # "16" | "24" | "32f" — only used when writing
     output_format: str = "wav"  # "wav" | "npy" — only used when writing
     skip_existing: bool = False
+    # Serum 2 only: keep the preset file's MPE settings in the state.
+    keep_mpe: bool = False
 
     def __post_init__(self) -> None:
         if self.midi_path is not None and self.midi_duration is None:

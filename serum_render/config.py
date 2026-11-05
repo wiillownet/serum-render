@@ -194,6 +194,10 @@ class RenderConfig:
     # per worker. In-process resets don't work for Serum 1 (state
     # survives even a full engine reload); see docs/decisions.md.
     deterministic: bool = False
+    # Serum 2 only: keep the preset file's MPE settings in the state. Off,
+    # MPE is off as in a fresh Serum instance. For MIDI files written for
+    # MPE; a preset routing member-channel pressure sounds different with it.
+    keep_mpe: bool = False
 
     def __post_init__(self) -> None:
         # Cheap shape/range checks only — no disk I/O. Path existence is

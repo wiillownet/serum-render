@@ -72,6 +72,7 @@ def _build_job(
             else None
         ),
         midi_duration=midi_duration,
+        keep_mpe=config.keep_mpe,
     )
 
 

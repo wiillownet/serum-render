@@ -104,6 +104,12 @@ def render(
              "as skipped with reason 'no_plugin'. Still exits 2 if nothing is "
              "renderable.",
     ),
+    keep_mpe: bool = typer.Option(
+        False, "--keep-mpe",
+        help="Keep each Serum 2 preset's own MPE settings. Default: MPE off, "
+             "as with a fresh Serum instance. For MIDI files written for MPE; "
+             "no effect on Serum 1 presets.",
+    ),
     deterministic: bool = typer.Option(
         False, "--deterministic",
         help="Render every preset in a fresh single-use process so batch "
@@ -284,6 +290,7 @@ def render(
             bit_depth=bit_depth,
             output_format=fmt,
             skip_existing=skip_existing,
+            keep_mpe=keep_mpe,
         )
         for (p, preset_fmt), out in zip(preset_files, output_paths)
     ]
@@ -374,7 +381,7 @@ def render(
                     line = {
                         "output": str(Path(output_for[result["path"]]).relative_to(output)),
                         "preset": result["path"],
-                        **{k: v for k, v in result.items() if k.startswith("preset_")},
+                        **{k: v for k, v in result.items() if k.startswith("preset_") or k == "keep_mpe"},
                         **provenance,
                     }
                     try:

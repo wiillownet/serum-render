@@ -185,7 +185,7 @@ class EngineHost:
         else:
             from serum2_preset_loader import convert_preset_file, read_preset_metadata
 
-            state = convert_preset_file(job.preset_path)
+            state = convert_preset_file(job.preset_path, keep_mpe=job.keep_mpe)
             # write_bytes (not append) so blob-size variance across
             # presets can't leave stale tail bytes from a larger blob.
             fe.state_path.write_bytes(state)
@@ -198,6 +198,8 @@ class EngineHost:
                     "Preset version not read for %s: %s", job.preset_path, error_text(exc)
                 )
                 versions = {"preset_version": None, "preset_version_error": error_text(exc)}
+            if job.keep_mpe:
+                versions["keep_mpe"] = True
             # Don't hold a sample-based preset's state through the render.
             del state
             fe.synth.load_state(str(fe.state_path))

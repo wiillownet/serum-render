@@ -175,3 +175,9 @@ def test_serum2_only_config_accepted_by_renderer(tmp_path):
     cfg = RenderConfig(serum2_plugin_path=_fake_plugin(tmp_path, "Serum2.vst3"))
     Renderer(cfg)
     ParallelRenderer(cfg)
+
+
+@pytest.mark.parametrize("keep_mpe", [False, True])
+def test_build_job_carries_keep_mpe(tmp_path, keep_mpe):
+    cfg = RenderConfig(serum2_plugin_path=_fake_plugin(tmp_path, "Serum2.vst3"), keep_mpe=keep_mpe)
+    assert _build_job(cfg, tmp_path / "p.SerumPreset", None).keep_mpe is keep_mpe

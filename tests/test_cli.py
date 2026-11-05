@@ -137,6 +137,33 @@ def test_json_emits_job_start_before_each_result(fake_env, no_defaults, monkeypa
     assert starts == results and all(Path(p).is_absolute() for p in starts)
 
 
+@pytest.mark.parametrize("flags, expected", [([], False), (["--keep-mpe"], True)])
+def test_keep_mpe_flag_reaches_every_job(fake_env, no_defaults, monkeypatch, flags, expected):
+    seen = []
+
+    def fake_iter_jobs(jobs, *a, on_start=None, **k):
+        seen.extend(jobs)
+        return iter(())
+
+    monkeypatch.setattr(cli, "iter_jobs", fake_iter_jobs)
+    plugin, presets, output = fake_env
+    result = runner.invoke(app, [str(presets), str(output), "--serum1", str(plugin), *flags])
+    assert result.exit_code == 0
+    assert len(seen) == 2 and all(j.keep_mpe is expected for j in seen)
+
+
+def test_keep_mpe_reaches_the_provenance_log(fake_env, no_defaults, monkeypatch):
+    def fake_iter_jobs(jobs, *a, on_start=None, **k):
+        yield {"status": "ok", "path": jobs[0].preset_path, "peak": 0.5, "preset_version": "2.1.3", "keep_mpe": True}
+        yield {"status": "ok", "path": jobs[1].preset_path, "peak": 0.5, "preset_version": "2.1.3"}
+
+    monkeypatch.setattr(cli, "iter_jobs", fake_iter_jobs)
+    plugin, presets, output = fake_env
+    runner.invoke(app, [str(presets), str(output), "--serum1", str(plugin)])
+    lines = [json.loads(s) for s in (output / "serum-render-provenance.jsonl").read_text().splitlines()]
+    assert [line.get("keep_mpe") for line in lines] == [True, None]
+
+
 def test_provenance_in_start_event_and_folder_log(fake_env, no_defaults, monkeypatch):
     def fake_iter_jobs(jobs, *a, on_start=None, **k):
         yield {"status": "ok", "path": jobs[0].preset_path, "peak": 0.5,
