@@ -62,6 +62,7 @@ A directory containing both `.fxp` and `.SerumPreset` files renders as one mixed
 | `--midi` | — | Render a `.mid` file instead of a single note. |
 | `--workers` | `-1` | Parallel workers; `-1` = `cpu_count - 1`. |
 | `--skip-existing` | off | Skip presets whose output already exists. |
+| `--keep-mpe` | off | Keep each Serum 2 preset's own MPE settings. See [MPE](#mpe). |
 | `--skip-missing-format` | off | Render what the installed plugins cover instead of refusing the whole batch. |
 | `--no-recurse` | off | Don't descend into subdirectories. |
 | `--dry-run` | off | Print the render plan and exit. |
@@ -178,6 +179,12 @@ audio = render_preset("lead.fxp", config)
 ```
 
 Set only the plugin paths for the formats you render; a missing path for a format actually present in the batch raises `ValueError` naming the field, before any worker boots.
+
+## MPE
+
+MPE is off by default, as with a fresh Serum instance, whatever the preset file says. `--keep-mpe` (`RenderConfig(keep_mpe=True)`) restores the file's MPE settings, for MIDI files written for MPE. A run with it records `"keep_mpe": true` on each Serum 2 line of the provenance log.
+
+Single notes and MIDI files on one channel rendered the same either way in the check behind this default. Files that send on member channels can differ, mostly through channel pressure, on presets that respond to it. The option has no effect on Serum 1 presets.
 
 ## Reproducibility
 

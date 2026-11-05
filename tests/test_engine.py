@@ -262,7 +262,7 @@ def test_serum2_dispatch_round_trips_state_blob(monkeypatch, tmp_path):
 
     import serum2_preset_loader as spl
 
-    def fake_convert(path):
+    def fake_convert(path, keep_mpe=False):
         calls["convert_called_with"] = path
         return fake_blob
 
@@ -303,7 +303,7 @@ def test_unreadable_preset_version_does_not_fail_the_render(monkeypatch, tmp_pat
     import serum2_preset_loader as spl
 
     calls: dict = {}
-    monkeypatch.setattr(spl, "convert_preset_file", lambda path: b"\x00STATE")
+    monkeypatch.setattr(spl, "convert_preset_file", lambda path, keep_mpe=False: b"\x00STATE")
     monkeypatch.setattr(spl, "read_preset_metadata", lambda path: {})
     host = _bare_host(
         {
@@ -519,3 +519,22 @@ def test_corrupt_serum2_preset_is_a_per_preset_error(monkeypatch, tmp_path):
     result = run_job(Job(preset_path=str(bad), format=PresetFormat.SERUM2))
     assert result["status"] == "error"
     assert "CBOR payload must be a map" in result["error"]
+
+
+def test_keep_mpe_keeps_the_files_mpe_settings(tmp_path):
+    """keep_mpe=True puts the file's MPE keys in the state, unchanged."""
+    calls: dict = {}
+    state_path = tmp_path / "state.bin"
+    fe = engine._FormatEngine(FakeEngine(calls), FakeSynth(calls), state_path)
+    host = _bare_host({PresetFormat.SERUM2: fe})
+    preset = _write_preset(
+        tmp_path / "mpe.SerumPreset",
+        _preset_tree(mpeEnabled=True, mpeConfig=1, mpePitchBendRange=24),
+    )
+    _, versions = host.render(Job(preset, PresetFormat.SERUM2, keep_mpe=True))
+    state = _state_tree(state_path.read_bytes())
+    assert (state["mpeEnabled"], state["mpeConfig"], state["mpePitchBendRange"]) == (True, 1, 24)
+    assert versions["keep_mpe"] is True
+
+    _, versions = host.render(Job(preset, PresetFormat.SERUM2))
+    assert "keep_mpe" not in versions
