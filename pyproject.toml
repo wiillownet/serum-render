@@ -27,7 +27,7 @@ dependencies = [
     "psutil",
     "mido",
     "numpy",
-    "serum2-preset-loader>=0.4,<0.5",
+    "serum2-preset-loader>=0.6,<0.7",
 ]
 
 [project.urls]

@@ -76,7 +76,7 @@ human-readable line to stderr, for driving serum-render from another
 program:
 
 ```
-{"event":"start","schema":1,"total":4271,"workers":7,"provenance":{"started":"2026-10-26T20:02:37+00:00","serum_render":"0.6.0","serum2_preset_loader":"0.4.0","plugins":{"serum1":"1.368","serum2":"2.1.5"}}}
+{"event":"start","schema":1,"total":4271,"workers":7,"provenance":{"started":"2026-10-26T20:02:37+00:00","serum_render":"0.6.1","serum2_preset_loader":"0.6.1","plugins":{"serum1":"1.368","serum2":"2.1.5"}}}
 {"event":"job_start","path":".../Bass 1.fxp"}
 {"event":"result","status":"ok","path":".../Bass 1.fxp","peak":0.3325,"preset_version":null}
 {"event":"result","status":"ok","path":".../Lead.SerumPreset","peak":0.2693,"preset_version":"2.0.11"}
@@ -132,7 +132,7 @@ relative to that folder, the preset, its version fields and the run's
 a given loader made:
 
 ```
-grep '"serum2_preset_loader": "0.4.0"' out/serum-render-provenance.jsonl
+grep '"serum2_preset_loader": "0.6.1"' out/serum-render-provenance.jsonl
 ```
 
 A re-render of the same file appends a new line, so the last line for an

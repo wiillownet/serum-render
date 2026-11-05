@@ -26,7 +26,7 @@ from .provenance import preset_versions
 logger = logging.getLogger("serum_render")
 
 
-MIN_SERUM2_LOADER = (0, 4)
+MIN_SERUM2_LOADER = (0, 6)
 
 
 class LoaderVersionError(RuntimeError):
@@ -34,10 +34,13 @@ class LoaderVersionError(RuntimeError):
 
 
 def check_serum2_loader() -> None:
-    """Refuse serum2-preset-loader older than 0.4. Earlier versions stamp
+    """Refuse serum2-preset-loader older than 0.6. Versions before 0.4 stamp
     every converted state as 2.1.4 / format 10.0, so Serum skips its own
-    migration and presets saved before 2.1.4 render wrong. Reads the
-    installed version from metadata, so the package is not imported."""
+    migration and presets saved before 2.1.4 render wrong; versions before
+    0.6 keep the file's MPE keys in the state, where Serum's editor load
+    leaves them out, and pass bad FX entries through to Serum, which crashes.
+    Reads the installed version from metadata, so the package is not
+    imported."""
     import re
     from importlib.metadata import PackageNotFoundError, version
 
@@ -46,14 +49,14 @@ def check_serum2_loader() -> None:
     except PackageNotFoundError:
         raise LoaderVersionError(
             "serum2-preset-loader is not installed; run "
-            "`pip install 'serum2-preset-loader>=0.4,<0.5'`"
+            "`pip install 'serum2-preset-loader>=0.6,<0.7'`"
         ) from None
     m = re.match(r"(\d+)\.(\d+)", found)
     if m is None or (int(m[1]), int(m[2])) < MIN_SERUM2_LOADER:
         raise LoaderVersionError(
-            f"serum2-preset-loader {found} is too old: versions before 0.4 "
-            "render Serum 2 presets saved before 2.1.4 wrong. Run "
-            "`pip install 'serum2-preset-loader>=0.4,<0.5'`"
+            f"serum2-preset-loader {found} is too old: versions before 0.6 "
+            "keep MPE on in the state and let a bad FX entry crash Serum. Run "
+            "`pip install 'serum2-preset-loader>=0.6,<0.7'`"
         )
 
 
