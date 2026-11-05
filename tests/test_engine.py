@@ -84,19 +84,114 @@ def test_init_worker_rejects_all_none_paths():
         init_worker(None, None, 44100)
 
 
-@pytest.mark.parametrize("found", ["0.1.3", "0.3.0", "0.3.9.post1"])
+@pytest.mark.parametrize("found", ["0.1.3", "0.3.0", "0.3.9.post1", "0.4.0", "0.5.2"])
 def test_enginehost_rejects_old_serum2_loader(monkeypatch, found):
-    """Loaders before 0.4 stamp every state as 2.1.4, so Serum skips its
-    migration for older presets. Fail before the dawdreamer import."""
+    """Loaders before 0.6 keep MPE on in the state and pass bad FX entries
+    to Serum. Fail before the dawdreamer import."""
     monkeypatch.setattr("importlib.metadata.version", lambda name: found)
     with pytest.raises(engine.LoaderVersionError, match=f"{found} is too old"):
         EngineHost(None, "/anywhere/Serum2.vst3", 44100)
 
 
-@pytest.mark.parametrize("found", ["0.4.0", "0.5.0", "0.10.0", "1.0.0"])
-def test_check_serum2_loader_accepts_0_4_and_later(monkeypatch, found):
+@pytest.mark.parametrize("found", ["0.6.0", "0.6.1", "0.10.0", "1.0.0"])
+def test_check_serum2_loader_accepts_0_6_and_later(monkeypatch, found):
     monkeypatch.setattr("importlib.metadata.version", lambda name: found)
     engine.check_serum2_loader()
+
+
+def test_loader_version_messages_name_the_pin(monkeypatch):
+    """Both messages give the install command the pin in pyproject allows."""
+    from importlib.metadata import PackageNotFoundError
+
+    pin = "serum2-preset-loader>=0.6,<0.7"
+    monkeypatch.setattr("importlib.metadata.version", lambda name: "0.5.2")
+    with pytest.raises(engine.LoaderVersionError, match="0.5.2 is too old") as old:
+        engine.check_serum2_loader()
+    assert pin in str(old.value)
+
+    def missing(name):
+        raise PackageNotFoundError(name)
+
+    monkeypatch.setattr("importlib.metadata.version", missing)
+    with pytest.raises(engine.LoaderVersionError, match="not installed") as absent:
+        engine.check_serum2_loader()
+    assert pin in str(absent.value)
+
+
+def test_pyproject_pin_matches_the_version_check():
+    """The floor in the code and the one in pyproject move together."""
+    import tomllib
+    from pathlib import Path
+
+    root = Path(engine.__file__).resolve().parent.parent
+    deps = tomllib.loads((root / "pyproject.toml").read_text())["project"]["dependencies"]
+    major, minor = engine.MIN_SERUM2_LOADER
+    assert f"serum2-preset-loader>={major}.{minor},<{major}.{minor + 1}" in deps
+
+
+# ---- real loader through the render core --------------------------------
+
+
+def _preset_tree(**extra) -> dict:
+    return {
+        "presetName": "Tiny", "presetAuthor": "Tester", "presetDescription": "",
+        "product": "Serum2", "url": "https://xferrecords.com/", "vendor": "Xfer Records",
+        "productVersion": "2.1.5", "version": 11.0, "fileType": "SerumPreset",
+        **extra,
+    }
+
+
+def _write_preset(path, tree) -> str:
+    from serum2_preset_loader import encode_preset
+
+    header = {k: tree[k] for k in ("presetName", "presetAuthor", "presetDescription",
+                                   "product", "productVersion", "fileType")}
+    path.write_bytes(encode_preset(header, tree))
+    return str(path)
+
+
+def _state_tree(state: bytes) -> dict:
+    """The processor tree inside a JUCE state blob."""
+    import struct
+    import xml.etree.ElementTree as ET
+
+    import cbor2
+    from serum2_preset_loader import juce_memoryblock_b64decode, unwrap_xferjson
+
+    xml_len = struct.unpack("<I", state[4:8])[0]
+    root = ET.fromstring(state[8:8 + xml_len].decode("utf-8"))
+    _meta, _version, cbor = unwrap_xferjson(juce_memoryblock_b64decode(root.findtext("IComponent")))
+    return cbor2.loads(cbor)
+
+
+def test_serum2_job_leaves_mpe_out_of_the_state(tmp_path):
+    """A file with MPE on reaches Serum with MPE off, as an editor load does."""
+    calls: dict = {}
+    state_path = tmp_path / "state.bin"
+    fe = engine._FormatEngine(FakeEngine(calls), FakeSynth(calls), state_path)
+    host = _bare_host({PresetFormat.SERUM2: fe})
+    preset = _write_preset(
+        tmp_path / "mpe.SerumPreset",
+        _preset_tree(mpeEnabled=True, mpeConfig=1, mpePitchBendRange=24),
+    )
+    host.render(Job(preset, PresetFormat.SERUM2))
+    state = _state_tree(state_path.read_bytes())
+    assert state["component"] == "processor"
+    assert not {"mpeEnabled", "mpeConfig", "mpePitchBendRange"} & set(state)
+
+
+def test_bad_fx_entry_fails_the_job_not_the_worker(tmp_path, monkeypatch):
+    """InvalidFXTypeError becomes an error result, before Serum sees the state."""
+    calls: dict = {}
+    fe = engine._FormatEngine(FakeEngine(calls), FakeSynth(calls), tmp_path / "state.bin")
+    monkeypatch.setattr(engine, "_HOST", _bare_host({PresetFormat.SERUM2: fe}))
+    preset = _write_preset(
+        tmp_path / "bad.SerumPreset",
+        _preset_tree(FXRack0={"FX": [{"type": 99}]}),
+    )
+    result = run_job(Job(preset, PresetFormat.SERUM2))
+    assert result["status"] == "error" and "FX[0]" in result["error"]
+    assert "load_state_called_with" not in calls
 
 
 # ---- render dispatch guards ---------------------------------------------
