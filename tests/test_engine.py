@@ -269,6 +269,7 @@ def test_serum2_dispatch_round_trips_state_blob(monkeypatch, tmp_path):
         return fake_blob
 
     monkeypatch.setattr(spl, "convert_preset_file", fake_convert)
+    monkeypatch.setattr(spl, "decode_preset_file", lambda path: ({}, {}))
     monkeypatch.setattr(spl, "read_preset_metadata", lambda path: {"productVersion": "2.1.3"})
 
     def fake_versions(state, header):
@@ -306,6 +307,7 @@ def test_unreadable_preset_version_does_not_fail_the_render(monkeypatch, tmp_pat
 
     calls: dict = {}
     monkeypatch.setattr(spl, "convert_preset_file", lambda path, keep_mpe=False: b"\x00STATE")
+    monkeypatch.setattr(spl, "decode_preset_file", lambda path: ({}, {}))
     monkeypatch.setattr(spl, "read_preset_metadata", lambda path: {})
     host = _bare_host(
         {
@@ -548,6 +550,7 @@ def _stub_loader(monkeypatch):
     import serum2_preset_loader as spl
 
     monkeypatch.setattr(spl, "convert_preset_file", lambda path, keep_mpe=False: b"\x00STATE")
+    monkeypatch.setattr(spl, "decode_preset_file", lambda path: ({}, {}))
     monkeypatch.setattr(spl, "read_preset_metadata", lambda path: {})
 
 

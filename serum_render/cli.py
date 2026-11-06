@@ -21,7 +21,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from .config import default_plugin_path
+from .config import DEFAULT_MULTISAMPLE_WAIT, default_plugin_path
 from .discover import (
     compose_filename,
     discover_presets,
@@ -110,6 +110,12 @@ def render(
              "as with a fresh Serum instance. For MIDI files written for MPE; "
              "no effect on Serum 1 presets.",
     ),
+    multisample_wait: float = typer.Option(
+        DEFAULT_MULTISAMPLE_WAIT, "--multisample-wait",
+        help="Seconds to wait between loading a Serum 2 preset that uses "
+             "MultiSample and its first note, so its samples finish loading. "
+             "0 turns the wait off. Other presets never wait.",
+    ),
     deterministic: bool = typer.Option(
         False, "--deterministic",
         help="Render every preset in a fresh single-use process so batch "
@@ -142,6 +148,11 @@ def render(
     # Typer's `min=` is inclusive, so "> 0" on duration needs a manual check.
     if duration <= 0:
         raise typer.BadParameter(f"--duration must be > 0 (got {duration}).")
+
+    if not 0 <= multisample_wait < float("inf"):
+        raise typer.BadParameter(
+            f"--multisample-wait must be >= 0 and finite (got {multisample_wait})."
+        )
 
     if bit_depth not in ("16", "24", "32f"):
         raise typer.BadParameter(f"--bit-depth must be 16, 24, or 32f (got {bit_depth!r}).")
@@ -291,6 +302,7 @@ def render(
             output_format=fmt,
             skip_existing=skip_existing,
             keep_mpe=keep_mpe,
+            multisample_wait=multisample_wait,
         )
         for (p, preset_fmt), out in zip(preset_files, output_paths)
     ]

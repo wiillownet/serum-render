@@ -63,6 +63,7 @@ A directory containing both `.fxp` and `.SerumPreset` files renders as one mixed
 | `--workers` | `-1` | Parallel workers; `-1` = `cpu_count - 1`. |
 | `--skip-existing` | off | Skip presets whose output already exists. |
 | `--keep-mpe` | off | Keep each Serum 2 preset's own MPE settings. See [MPE](#mpe). |
+| `--multisample-wait` | `10` | Seconds between loading a Serum 2 preset that uses MultiSample and its first note; `0` turns it off. See [MultiSample presets](#multisample-presets). |
 | `--skip-missing-format` | off | Render what the installed plugins cover instead of refusing the whole batch. |
 | `--no-recurse` | off | Don't descend into subdirectories. |
 | `--dry-run` | off | Print the render plan and exit. |
@@ -185,6 +186,12 @@ Set only the plugin paths for the formats you render; a missing path for a forma
 MPE is off by default, as with a fresh Serum instance, whatever the preset file says. `--keep-mpe` (`RenderConfig(keep_mpe=True)`) restores the file's MPE settings, for MIDI files written for MPE. A run with it records `"keep_mpe": true` on each Serum 2 line of the provenance log.
 
 Single notes and MIDI files on one channel rendered the same either way in the check behind this default. Files that send on member channels can differ, mostly through channel pressure, on presets that respond to it. The option has no effect on Serum 1 presets.
+
+## MultiSample presets
+
+Serum 2 loads MultiSample audio on background threads and nothing waits for it, so a note that arrives before a region's sample is ready plays nothing for that region. An offline render reaches its first note in milliseconds, so it can come out partial or silent. serum-render waits between the load and the first note, only for Serum 2 presets with a MultiSample oscillator. Other presets, and Serum 1, never wait.
+
+The default is 10 seconds (`--multisample-wait`, `RenderConfig(multisample_wait=...)`), chosen from `docs/multisample-wait-2026-11-05.json`: the longest any preset needed was 5 seconds, at the parallel worker counts. Each MultiSample preset costs one worker that long. The full 778-preset library at 7 workers went from 117 to 326 seconds. A slower disk or a first read of samples not yet in the file cache may need more than was measured; lower it only if you check your own presets.
 
 ## Reproducibility
 

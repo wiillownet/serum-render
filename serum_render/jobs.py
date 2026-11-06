@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .config import DEFAULT_MULTISAMPLE_WAIT
 from .formats import PresetFormat
 
 
@@ -29,6 +30,8 @@ class Job:
     skip_existing: bool = False
     # Serum 2 only: keep the preset file's MPE settings in the state.
     keep_mpe: bool = False
+    # Serum 2 only: seconds to wait after loading a preset that uses MultiSample.
+    multisample_wait: float = DEFAULT_MULTISAMPLE_WAIT
 
     def __post_init__(self) -> None:
         if self.midi_path is not None and self.midi_duration is None:

@@ -53,6 +53,8 @@ Fresh-process-per-preset is the one mechanism that works for both formats, is ex
 
 ## [2026-09-01] No settle render for the Serum 2 multisample instability
 
+**Status:** Superseded by 2026-11-06, "Wait after loading a Serum 2 preset that uses MultiSample".
+
 **Decision:** Leave the render path alone. Sample-based Serum 2 presets can render at the wrong level or unstably (see `KNOWN_ISSUES.md`); a throwaway "settle" render between `load_state` and the real render is **not** the fix and is not shipping. The 0.1s warmup at `EngineHost` construction stays exactly as it is.
 
 **Reason:** Swept a post-load settle render from 0 to 3 seconds across five sample-based Factory presets, 8 consecutive loads each, recording peak amplitude:
@@ -190,3 +192,12 @@ Two reasons that were considered and are explicitly **not** why, recorded so the
 **Reason:** Loaders before 0.6 kept MPE on in the state, where Serum's editor load leaves it off, and let a bad FX entry crash Serum. An old-against-new check found no change for single notes on 100 presets, and none for MIDI on one channel on 28 MPE-on presets. MIDI files on member channels did change on 7 of those 28, mostly through channel pressure: on 5 the difference is about as loud as the render (RMS from -7 to +2 dB against it), and on 2 it is 33 dB down or lower. Those 7 render bit-identically to loader 0.4 with `keep_mpe=True`, with the same state bytes, so MPE is the whole difference, and a file written for MPE needs a way to get it. The evidence is in the `re` repo, `serum-spec/data/serum_render_pin_wide.json`.
 
 **Alternatives considered:** Passing `keep_mpe=True` always (keeps old MIDI output, but disagrees with Serum's own load for every preset). No option (leaves MIDI files written for MPE with no correct render). 0.6.1 as a patch (the policy reserves patches for no observable change, and it would reach the GUI without its own release).
+
+## [2026-11-06] Wait after loading a Serum 2 preset that uses MultiSample
+
+**Decision:** Between `load_state` and the first note, `EngineHost.render` sleeps `Job.multisample_wait` seconds when any oscillator's `plainParams.kParamType` is `kOsc_MultiSample`, read from `decode_preset_file`'s tree. The default is 10 seconds, set by `--multisample-wait` or `RenderConfig.multisample_wait`; 0 turns it off and skips the decode. Other presets and Serum 1 never wait. 0.7.1, a patch at the owner's call because it fixes a bug, though the versioning policy would make a new flag a minor.
+
+**Reason:** This reverses the 2026-09-01 entry, whose sweep ran consecutive loads in one process, so the race was mixed with warm-instance history. The Serum 2 study (`re` repo, spec 10 section 17.4, Quirk Q78) isolated it with one fresh instance per render: a state load queues the samples on a thread pool and returns, and a note-on before a region's data arrives starts no voice for that region. A `time.sleep` works because those threads need wall-clock time, not host calls. The default comes from `docs/multisample-wait-2026-11-05.json`: at 7 and 8 workers the worst preset was `PN - Piano EDM` at 8 workers, 7 of 8 at 3 seconds and 8 of 8 from 5, so 10 is twice what was needed. Presets that embed their audio needed no wait. Every oscillator has a `MultiSampleOsc` subkey whatever its type, so the type is what must be read.
+
+**Alternatives considered:** Holding one decoded tree through `convert_preset_tree` (22% more peak memory on the largest preset, 3,042 MB against 2,483 MB, where decoding once more and dropping the tree first costs 9%, 2,704 MB; on presets without embedded audio a decode takes about a millisecond). A throwaway render instead of a sleep (gives the threads time only by accident, and changes host history). A wait per preset scaled by sample count (more to get wrong for little gain: the race depends on disk and load too). A load-complete signal (DawDreamer exposes none). A lower default near 5 seconds (no margin for a slower machine).
+
