@@ -75,62 +75,26 @@ Serum 1 and Serum 2 retain internal DSP state (LFO phase, envelope residue, lazy
 
 serum-render addresses this with `--deterministic`, which renders every preset in a fresh single-use process — bit-identical across runs and render orders, verified against real Serum 1 + 2. See the README's reproducibility section and `docs/decisions.md` for the probe data (including why in-process resets are not enough for Serum 1).
 
-`--deterministic` removes cross-preset state leakage, which is what the probe measured. It does **not** cover the Serum 2 multisample load race below — that one is inside a single render, so a fresh process does not help.
+`--deterministic` removes cross-preset state leakage, which is what the probe measured. It does not cover the Serum 2 MultiSample load race below, which happens inside a single render; the wait described there covers that.
 
 
 ---
 
-## Sample-heavy Serum 2 presets can render partially loaded (both render paths)
+## MultiSample presets can render partially loaded without a wait (fixed in 0.7.1)
 
-**Symptom:** the same preset, rendered twice with identical settings, produces
-two different files. Not a small numerical drift — the two renders diverge
-within the first ~5 samples and the difference can exceed the signal's own peak
-amplitude. A preset that renders at peak 0.25 sometimes comes out at 0.05, and
-one that renders at 0.54 sometimes comes out silent.
+**Symptom, before 0.7.1:** the same Serum 2 preset, rendered with identical settings, could come out at a different level or silent. The difference is large and comes in a few discrete outcomes, not a gradient. Some presets were stable and wrong, so rendering twice and comparing did not reveal it.
 
-**Measured (2026-09-01, Serum 2, Factory/Piano):**
+**Cause:** a state load queues one task per sample on a thread pool and returns, and nothing waits for them. A note-on that arrives before a region's data is ready starts no voice for that region for that whole note. An offline render reaches its first note in milliseconds, so it loses this race often. The Serum 2 study (`re` repo, spec 10 section 17.4, Quirk Q78) showed this with one fresh instance per render and identical host calls: a wall-clock wait after the load makes repeats bit-identical, and presets without a MultiSample oscillator did not vary.
 
-- 10 identical `--deterministic` renders of `PN - Piano Classic Layer`: nine at
-  peak 0.2524, one at 0.0512. Exactly two outcomes, never a gradient.
-- Two `--deterministic` passes over the 12-preset folder: 1–4 files differ per
-  trial. The same folder under `Factory/Instrument` (3 presets, no multisamples)
-  was bit-identical across every trial.
-- The default warm-pool path is affected too, so this is not specific to
-  `--deterministic`.
+**What 0.7.1 does:** it waits between the state load and the first note, 10 seconds by default (`--multisample-wait`, `RenderConfig(multisample_wait=...)`), only when a preset has an oscillator of type MultiSample. Measured at 7 and 8 workers (`docs/multisample-wait-2026-11-05.json`):
 
-**Cause:** Serum 2 lazy-loads sample data, and for heavy multisampled
-instruments that load is not always complete when the render starts. The
-0.1-second warmup render in `EngineHost` absorbs the cold-start *level* anomaly
-(see above) but does not guarantee a large multisample set is resident. The
-render then captures a partially-loaded instrument. This is unrelated to
-presets referencing missing sample files — the affected renders logged no
-`can't open` warnings.
+- The longest any preset needed was 5 seconds. Presets that embed their audio needed no wait.
+- At the default, the 13 largest cases gave 20 of 20 renders equal to their settled reference, for a single note and a keyboard sweep at both worker counts. All 186 installed MultiSample presets gave 3 of 3.
+- Presets without MultiSample render byte-identically to 0.7.0, with no wait.
 
-**Not fixed, and a settle render is not the fix.** Tested (2026-09-01):
-inserting a throwaway render between `load_state` and the real render, swept
-from 0 to 3 seconds, across five sample-based presets. Results do not
-generalise — at a 1-second settle, `PN - Piano Space` and
-`GTR - Acoustic Guitar Duo` became perfectly stable, `PN - Piano Classic Layer`
-moved from a stable-but-wrong 0.0512 to ~0.3325 with 0.2% jitter,
-`PN - Piano Dance` got *worse* (stable at 0 settle, alternating between two
-values at 1 second), and `PN - Ambient Piano` was unchanged: 8 distinct peaks
-across 8 loads in both conditions, ranging 0.08 to 0.30.
+An earlier version of this entry said a settle render was not the fix. That sweep ran consecutive loads in one process, so the race was mixed with the warm-instance history described above. It also used a render, where the threads need wall-clock time.
 
-That last one probably is not a load race at all — a spread that wide, present
-regardless of settle time, looks like per-note randomisation inside the preset
-(random phase, noise, sample start). So at least two distinct effects are mixed
-together here, and a single warmup knob cannot address both.
-
-Also note the first load in a process usually differs from every later one:
-with no settle, most presets tested were stable across loads 2..N but not on
-load 1. That is the same order-dependence documented above, not a separate
-problem.
-
-**Detect:** render twice and compare, e.g.
-`cmp a/preset.wav b/preset.wav`, or compare peak amplitudes — the failure mode
-is bimodal and obvious, not subtle. Affected presets are the sample-based ones
-(pianos, guitars, drum kits, orchestral); pure-synthesis presets and all of
-Serum 1 are unaffected.
+**Limits:** the measurements are from one 8-core machine with samples in the file cache. A slower disk or a first read may need more, so raise the wait if a preset still varies. Each MultiSample preset costs a worker that long: the full 778-preset library at 7 workers went from 117 to 326 seconds. Warm-pool renders still vary with worker history, as above; `--deterministic` remains the only reproducibility guarantee. A preset can also be silent for a simple reason: a drum kit with nothing mapped to the rendered note (`KIT - Auxillary Kit` at C3) is silent at any wait.
 
 ---
 
