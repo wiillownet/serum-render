@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 import serum_render.config as config
-from serum_render.config import RenderConfig, default_plugin_path
+from serum_render.config import DEFAULT_MULTISAMPLE_WAIT, RenderConfig, default_plugin_path
 from serum_render.formats import PresetFormat, format_for_path, suffix_for
 
 
@@ -301,3 +301,18 @@ def test_plugin_path_on_an_unknown_platform_checks_existence_only(tmp_path):
     odd = tmp_path / "Serum.whatever"
     odd.touch()
     assert config.plugin_path_looks_valid(odd, PresetFormat.SERUM1, "testos")
+
+
+def test_multisample_wait_defaults_to_the_shared_constant():
+    assert RenderConfig(serum2_plugin_path="/p").multisample_wait == DEFAULT_MULTISAMPLE_WAIT
+    assert DEFAULT_MULTISAMPLE_WAIT > 0
+
+
+def test_multisample_wait_zero_is_allowed():
+    assert RenderConfig(serum2_plugin_path="/p", multisample_wait=0).multisample_wait == 0
+
+
+@pytest.mark.parametrize("bad", [-1, float("inf"), float("nan")])
+def test_multisample_wait_must_be_finite_and_not_negative(bad):
+    with pytest.raises(ValueError, match="multisample_wait"):
+        RenderConfig(serum2_plugin_path="/p", multisample_wait=bad)

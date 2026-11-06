@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 import serum_render.engine as engine
+from serum_render.config import DEFAULT_MULTISAMPLE_WAIT
 from serum_render.engine import EngineHost, init_worker, run_job
 from serum_render.formats import PresetFormat
 from serum_render.jobs import Job
@@ -609,3 +610,105 @@ def test_constructing_a_host_makes_no_temp_folder():
     import inspect
 
     assert "mkdtemp" not in inspect.getsource(EngineHost)
+
+
+# ---- MultiSample load wait --------------------------------------------
+
+
+def _osc(kind):
+    return {"plainParams": {"kParamType": kind}, "MultiSampleOsc0": {"plainParams": "no_change"}}
+
+
+@pytest.mark.parametrize(
+    "tree, expected",
+    [
+        ({"Oscillator0": _osc("kOsc_MultiSample")}, True),
+        ({"Oscillator0": _osc("kOsc_WT"), "Oscillator2": _osc("kOsc_MultiSample")}, True),
+        # Every oscillator has the subkey, and the tree a MultiSampleOsc module.
+        ({"Oscillator0": _osc("kOsc_WT"), "MultiSampleOsc": {"plainParams": {}}}, False),
+        ({"Oscillator0": _osc("kOsc_Sample"), "Oscillator1": _osc("kOsc_Granular")}, False),
+        ({"Oscillator0": {"plainParams": "no_change"}, "Oscillator3": {}}, False),
+        ({"Oscillator0": "not a module"}, False),
+        ({"VoiceFilter0": {"plainParams": {"kParamType": "kOsc_MultiSample"}}}, False),
+        ({}, False),
+    ],
+    ids=["first", "third", "subkey-only", "other-types", "default-type", "malformed", "other-module", "empty"],
+)
+def test_uses_multisample(tree, expected):
+    assert engine.uses_multisample(tree) is expected
+
+
+def _wait_host(monkeypatch, tmp_path, tree):
+    """A Serum 2 host whose preset decodes to `tree`; records the call order
+    of load_state, sleep and the first note."""
+    import serum2_preset_loader as spl
+
+    order: list = []
+
+    class Synth(FakeSynth):
+        def load_state(self, path):
+            order.append("load")
+
+        def add_midi_note(self, *a, **kw):
+            order.append("note")
+
+    decoded: list = []
+
+    def decode(path):
+        decoded.append(path)
+        return {}, tree
+
+    monkeypatch.setattr(spl, "decode_preset_file", decode)
+    monkeypatch.setattr(spl, "convert_preset_file", lambda path, keep_mpe=False: b"\x00STATE")
+    monkeypatch.setattr(spl, "read_preset_metadata", lambda path: {})
+    monkeypatch.setattr(engine.time, "sleep", lambda s: order.append(("sleep", s)))
+    calls: dict = {}
+    host = _bare_host(
+        {PresetFormat.SERUM2: engine._FormatEngine(FakeEngine(calls), Synth(calls))}
+    )
+    return host, order, decoded
+
+
+def test_multisample_preset_waits_between_load_and_first_note(monkeypatch, tmp_path):
+    host, order, _ = _wait_host(monkeypatch, tmp_path, {"Oscillator0": _osc("kOsc_MultiSample")})
+    host.render(Job("/p.SerumPreset", PresetFormat.SERUM2, multisample_wait=2.5))
+    assert order == ["load", ("sleep", 2.5), "note"]
+
+
+def test_default_wait_applies_when_job_does_not_set_one(monkeypatch, tmp_path):
+    host, order, _ = _wait_host(monkeypatch, tmp_path, {"Oscillator0": _osc("kOsc_MultiSample")})
+    host.render(Job("/p.SerumPreset", PresetFormat.SERUM2))
+    assert order == ["load", ("sleep", DEFAULT_MULTISAMPLE_WAIT), "note"]
+
+
+def test_other_preset_does_not_wait(monkeypatch, tmp_path):
+    host, order, _ = _wait_host(monkeypatch, tmp_path, {"Oscillator0": _osc("kOsc_WT")})
+    host.render(Job("/p.SerumPreset", PresetFormat.SERUM2, multisample_wait=2.5))
+    assert order == ["load", "note"]
+
+
+def test_wait_zero_skips_the_wait_and_the_decode(monkeypatch, tmp_path):
+    host, order, decoded = _wait_host(monkeypatch, tmp_path, {"Oscillator0": _osc("kOsc_MultiSample")})
+    host.render(Job("/p.SerumPreset", PresetFormat.SERUM2, multisample_wait=0))
+    assert order == ["load", "note"] and decoded == []
+
+
+def test_serum1_never_waits(monkeypatch):
+    monkeypatch.setattr(engine.time, "sleep", lambda s: pytest.fail("Serum 1 slept"))
+    calls: dict = {}
+    host = _bare_host({PresetFormat.SERUM1: engine._FormatEngine(FakeEngine(calls), FakeSynth(calls))})
+    host.render(Job("/p.fxp", PresetFormat.SERUM1, multisample_wait=2.5))
+    assert calls["load_preset_called_with"] == "/p.fxp"
+
+
+def test_real_preset_tree_is_detected(monkeypatch, tmp_path):
+    """Through the real decoder: a file on disk, not a stubbed tree."""
+    import serum2_preset_loader as spl
+
+    preset = _write_preset(
+        tmp_path / "ms.SerumPreset",
+        _preset_tree(Oscillator0={"plainParams": {"kParamType": "kOsc_MultiSample"}}),
+    )
+    assert engine.uses_multisample(spl.decode_preset_file(preset)[1]) is True
+    plain = _write_preset(tmp_path / "wt.SerumPreset", _preset_tree())
+    assert engine.uses_multisample(spl.decode_preset_file(plain)[1]) is False
