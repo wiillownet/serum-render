@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import tempfile
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -32,6 +34,8 @@ class FakeSynth:
 
     def load_state(self, path):
         self.calls["load_state_called_with"] = path
+        # The file is gone after the render, so keep what the load saw.
+        self.calls["state_bytes"] = Path(path).read_bytes()
 
     def clear_midi(self):
         self.calls["clear_midi_called"] = True
@@ -167,15 +171,14 @@ def _state_tree(state: bytes) -> dict:
 def test_serum2_job_leaves_mpe_out_of_the_state(tmp_path):
     """A file with MPE on reaches Serum with MPE off, as an editor load does."""
     calls: dict = {}
-    state_path = tmp_path / "state.bin"
-    fe = engine._FormatEngine(FakeEngine(calls), FakeSynth(calls), state_path)
+    fe = engine._FormatEngine(FakeEngine(calls), FakeSynth(calls))
     host = _bare_host({PresetFormat.SERUM2: fe})
     preset = _write_preset(
         tmp_path / "mpe.SerumPreset",
         _preset_tree(mpeEnabled=True, mpeConfig=1, mpePitchBendRange=24),
     )
     host.render(Job(preset, PresetFormat.SERUM2))
-    state = _state_tree(state_path.read_bytes())
+    state = _state_tree(calls["state_bytes"])
     assert state["component"] == "processor"
     assert not {"mpeEnabled", "mpeConfig", "mpePitchBendRange"} & set(state)
 
@@ -183,7 +186,7 @@ def test_serum2_job_leaves_mpe_out_of_the_state(tmp_path):
 def test_bad_fx_entry_fails_the_job_not_the_worker(tmp_path, monkeypatch):
     """InvalidFXTypeError becomes an error result, before Serum sees the state."""
     calls: dict = {}
-    fe = engine._FormatEngine(FakeEngine(calls), FakeSynth(calls), tmp_path / "state.bin")
+    fe = engine._FormatEngine(FakeEngine(calls), FakeSynth(calls))
     monkeypatch.setattr(engine, "_HOST", _bare_host({PresetFormat.SERUM2: fe}))
     preset = _write_preset(
         tmp_path / "bad.SerumPreset",
@@ -257,7 +260,6 @@ def test_serum2_dispatch_round_trips_state_blob(monkeypatch, tmp_path):
     """Serum 2 jobs must go convert_preset_file -> write_bytes ->
     load_state, never load_preset."""
     fake_blob = b"\x00\x01STATEBLOB\x02\x03"
-    state_path = tmp_path / "state.bin"
     calls: dict = {}
 
     import serum2_preset_loader as spl
@@ -278,7 +280,7 @@ def test_serum2_dispatch_round_trips_state_blob(monkeypatch, tmp_path):
     host = _bare_host(
         {
             PresetFormat.SERUM2: engine._FormatEngine(
-                FakeEngine(calls), FakeSynth(calls), state_path=state_path
+                FakeEngine(calls), FakeSynth(calls)
             )
         }
     )
@@ -293,9 +295,9 @@ def test_serum2_dispatch_round_trips_state_blob(monkeypatch, tmp_path):
     assert versions == {"preset_version": "2.1.3"}
     assert calls["versions_called_with"] == (fake_blob, {"productVersion": "2.1.3"})
     assert calls.get("convert_called_with") == "/some/preset.SerumPreset"
-    assert calls.get("load_state_called_with") == str(state_path)
+    assert Path(calls["load_state_called_with"]).name == "state.bin"
     assert "load_preset_called_with" not in calls
-    assert state_path.read_bytes() == fake_blob
+    assert calls["state_bytes"] == fake_blob
     assert calls["render_called_with"] == pytest.approx(0.2)
 
 
@@ -308,7 +310,7 @@ def test_unreadable_preset_version_does_not_fail_the_render(monkeypatch, tmp_pat
     host = _bare_host(
         {
             PresetFormat.SERUM2: engine._FormatEngine(
-                FakeEngine(calls), FakeSynth(calls), state_path=tmp_path / "state.bin"
+                FakeEngine(calls), FakeSynth(calls)
             )
         }
     )
@@ -317,7 +319,7 @@ def test_unreadable_preset_version_does_not_fail_the_render(monkeypatch, tmp_pat
 
     assert versions["preset_version"] is None
     assert "state layout changed" in versions["preset_version_error"]
-    assert calls.get("load_state_called_with") == str(tmp_path / "state.bin")
+    assert Path(calls["load_state_called_with"]).name == "state.bin"
 
 
 def test_serum1_dispatch_calls_load_preset():
@@ -511,7 +513,7 @@ def test_corrupt_serum2_preset_is_a_per_preset_error(monkeypatch, tmp_path):
         _bare_host(
             {
                 PresetFormat.SERUM2: engine._FormatEngine(
-                    FakeEngine(calls), FakeSynth(calls), tmp_path / "state.bin"
+                    FakeEngine(calls), FakeSynth(calls)
                 )
             }
         ),
@@ -524,17 +526,83 @@ def test_corrupt_serum2_preset_is_a_per_preset_error(monkeypatch, tmp_path):
 def test_keep_mpe_keeps_the_files_mpe_settings(tmp_path):
     """keep_mpe=True puts the file's MPE keys in the state, unchanged."""
     calls: dict = {}
-    state_path = tmp_path / "state.bin"
-    fe = engine._FormatEngine(FakeEngine(calls), FakeSynth(calls), state_path)
+    fe = engine._FormatEngine(FakeEngine(calls), FakeSynth(calls))
     host = _bare_host({PresetFormat.SERUM2: fe})
     preset = _write_preset(
         tmp_path / "mpe.SerumPreset",
         _preset_tree(mpeEnabled=True, mpeConfig=1, mpePitchBendRange=24),
     )
     _, versions = host.render(Job(preset, PresetFormat.SERUM2, keep_mpe=True))
-    state = _state_tree(state_path.read_bytes())
+    state = _state_tree(calls["state_bytes"])
     assert (state["mpeEnabled"], state["mpeConfig"], state["mpePitchBendRange"]) == (True, 1, 24)
     assert versions["keep_mpe"] is True
 
     _, versions = host.render(Job(preset, PresetFormat.SERUM2))
     assert "keep_mpe" not in versions
+
+
+# ---- temp folder lifetime ---------------------------------------------
+
+
+def _stub_loader(monkeypatch):
+    import serum2_preset_loader as spl
+
+    monkeypatch.setattr(spl, "convert_preset_file", lambda path, keep_mpe=False: b"\x00STATE")
+    monkeypatch.setattr(spl, "read_preset_metadata", lambda path: {})
+
+
+def _leftovers(root):
+    return list(root.glob("serum_render_*"))
+
+
+def test_batch_leaves_no_temp_folder(monkeypatch, tmp_path):
+    _stub_loader(monkeypatch)
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    calls: dict = {}
+    host = _bare_host({PresetFormat.SERUM2: engine._FormatEngine(FakeEngine(calls), FakeSynth(calls))})
+    seen = []
+    for i in range(3):
+        host.render(Job(f"/p{i}.SerumPreset", PresetFormat.SERUM2))
+        seen.append(calls["load_state_called_with"])
+        assert _leftovers(tmp_path) == []
+    # The load saw a real file in a folder of ours, a new one each render.
+    assert all(Path(p).parent.parent == tmp_path for p in seen) and len(set(seen)) == 3
+
+
+def test_failed_load_leaves_no_temp_folder(monkeypatch, tmp_path):
+    _stub_loader(monkeypatch)
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+
+    class BadSynth(FakeSynth):
+        def load_state(self, path):
+            assert Path(path).exists()
+            raise RuntimeError("plugin refused the state")
+
+    calls: dict = {}
+    host = _bare_host({PresetFormat.SERUM2: engine._FormatEngine(FakeEngine(calls), BadSynth(calls))})
+    with pytest.raises(RuntimeError, match="plugin refused"):
+        host.render(Job("/p.SerumPreset", PresetFormat.SERUM2))
+    assert _leftovers(tmp_path) == []
+
+
+def test_failed_render_after_load_leaves_no_temp_folder(monkeypatch, tmp_path):
+    _stub_loader(monkeypatch)
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+
+    class BadEngine(FakeEngine):
+        def render(self, duration):
+            raise RuntimeError("render failed")
+
+    calls: dict = {}
+    host = _bare_host({PresetFormat.SERUM2: engine._FormatEngine(BadEngine(calls), FakeSynth(calls))})
+    with pytest.raises(RuntimeError, match="render failed"):
+        host.render(Job("/p.SerumPreset", PresetFormat.SERUM2))
+    assert _leftovers(tmp_path) == []
+
+
+def test_constructing_a_host_makes_no_temp_folder():
+    """A process that exits between jobs must have nothing to clean up: the
+    folder belongs to the render, not the host."""
+    import inspect
+
+    assert "mkdtemp" not in inspect.getsource(EngineHost)

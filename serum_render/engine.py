@@ -78,11 +78,6 @@ class _FormatEngine:
     """
     engine: object
     synth: object
-    # serum2 only: per-process tempfile that round-trips the converted
-    # state blob into `synth.load_state` (which takes a path, not bytes).
-    # Reused for every job — write_bytes overwrites in place. Never
-    # shared across processes.
-    state_path: Path | None = None
 
 
 class EngineHost:
@@ -121,20 +116,14 @@ class EngineHost:
 
         if serum1_plugin_path is not None:
             self._engines[PresetFormat.SERUM1] = self._build_engine(
-                daw, "serum1_synth", serum1_plugin_path, state_path=None
+                daw, "serum1_synth", serum1_plugin_path
             )
         if serum2_plugin_path is not None:
-            tmpdir = tempfile.mkdtemp(prefix="serum_render_")
             self._engines[PresetFormat.SERUM2] = self._build_engine(
-                daw,
-                "serum2_synth",
-                serum2_plugin_path,
-                state_path=Path(tmpdir) / "state.bin",
+                daw, "serum2_synth", serum2_plugin_path
             )
 
-    def _build_engine(
-        self, daw, name: str, plugin_path: str | Path, state_path: Path | None
-    ) -> _FormatEngine:
+    def _build_engine(self, daw, name: str, plugin_path: str | Path) -> _FormatEngine:
         engine = daw.RenderEngine(self.sample_rate, 512)
         synth = engine.make_plugin_processor(name, str(Path(plugin_path).resolve()))
         engine.load_graph([(synth, [])])
@@ -143,7 +132,7 @@ class EngineHost:
         synth.clear_midi()
         synth.add_midi_note(48, 127, 0.0, 0.05)
         engine.render(0.1)
-        return _FormatEngine(engine=engine, synth=synth, state_path=state_path)
+        return _FormatEngine(engine=engine, synth=synth)
 
     def loaded_formats(self) -> set[PresetFormat]:
         return set(self._engines)
@@ -186,9 +175,6 @@ class EngineHost:
             from serum2_preset_loader import convert_preset_file, read_preset_metadata
 
             state = convert_preset_file(job.preset_path, keep_mpe=job.keep_mpe)
-            # write_bytes (not append) so blob-size variance across
-            # presets can't leave stale tail bytes from a larger blob.
-            fe.state_path.write_bytes(state)
             # Provenance must not cost a render: an unreadable version is
             # logged and recorded as an error field, and the render goes on.
             try:
@@ -201,8 +187,15 @@ class EngineHost:
             if job.keep_mpe:
                 versions["keep_mpe"] = True
             # Don't hold a sample-based preset's state through the render.
-            del state
-            fe.synth.load_state(str(fe.state_path))
+            # load_state takes a path and reads it before returning, so the
+            # folder lives only this long; nothing is left after a render, a
+            # failed load or the process's exit. Only a kill inside this
+            # block can leave one behind.
+            with tempfile.TemporaryDirectory(prefix="serum_render_") as tmp:
+                state_path = Path(tmp) / "state.bin"
+                state_path.write_bytes(state)
+                del state
+                fe.synth.load_state(str(state_path))
 
         if job.midi_path is not None:
             fe.synth.load_midi(
