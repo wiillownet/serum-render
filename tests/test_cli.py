@@ -25,7 +25,7 @@ from typer.testing import CliRunner
 
 import serum_render.cli as cli
 from serum_render.cli import app
-from serum_render.config import default_plugin_path
+from serum_render.config import DEFAULT_MULTISAMPLE_WAIT, default_plugin_path
 from serum_render.formats import PresetFormat
 
 runner = CliRunner()
@@ -768,3 +768,28 @@ def test_skip_missing_format_still_exits_2_when_nothing_is_renderable(
     )
     assert result.exit_code == 2
     assert "nothing to render" in result.output.lower()
+
+
+@pytest.mark.parametrize(
+    "flags, expected", [([], DEFAULT_MULTISAMPLE_WAIT), (["--multisample-wait", "0"], 0.0), (["--multisample-wait", "7.5"], 7.5)]
+)
+def test_multisample_wait_flag_reaches_every_job(fake_env, no_defaults, monkeypatch, flags, expected):
+    seen = []
+
+    def fake_iter_jobs(jobs, *a, on_start=None, **k):
+        seen.extend(jobs)
+        return iter(())
+
+    monkeypatch.setattr(cli, "iter_jobs", fake_iter_jobs)
+    plugin, presets, output = fake_env
+    result = runner.invoke(app, [str(presets), str(output), "--serum1", str(plugin), *flags])
+    assert result.exit_code == 0
+    assert len(seen) == 2 and all(j.multisample_wait == expected for j in seen)
+
+
+@pytest.mark.parametrize("bad", ["-1", "inf", "nan"])
+def test_multisample_wait_flag_refuses_bad_values(fake_env, no_defaults, bad):
+    plugin, presets, output = fake_env
+    result = runner.invoke(app, [str(presets), str(output), "--serum1", str(plugin), "--multisample-wait", bad])
+    assert result.exit_code == 2
+    assert "--multisample-wait" in result.output
