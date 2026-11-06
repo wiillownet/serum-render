@@ -40,12 +40,6 @@ Serum 2 lazy-loads sample data on first render; the cold render comes out at ~10
 
 ---
 
-## Per-process tempfile directory is not cleaned up
-
-Serum 2 jobs round-trip the converted state blob through a per-process tempfile (`$TMPDIR/serum_render_*/state.bin`, overwritten in place, typically <1 MB). loky doesn't run finalizers on worker exit, so directories accumulate over many runs. macOS and most Linux distros sweep `/tmp` periodically; wipe `$TMPDIR/serum_render_*` manually if needed.
-
----
-
 ## JUCE `attempt to map invalid URI` stderr noise on plugin load (macOS)
 
 JUCE's plugin loader (via DawDreamer) logs a non-fatal `error: attempt to map invalid URI ...` line at worker startup. The render is unaffected. serum-render does not suppress JUCE's stderr — that would risk hiding genuine plugin errors on the same stream. Filter at the shell if needed:

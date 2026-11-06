@@ -10,6 +10,9 @@ runs the smoke half they have plumbing for.
 """
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -166,3 +169,24 @@ def test_cli_end_to_end_mixed(
     assert len(wavs) == 4, [w.name for w in wavs]
     for w in wavs:
         _check_wav(w)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("flags", [[], ["--deterministic"]], ids=["warm-pool", "deterministic"])
+def test_cli_batch_leaves_no_temp_folder(serum2_plugin_path, serum2_preset_files, tmp_path, flags):
+    """A real batch in its own process tree, with TMPDIR pointed at an empty
+    folder: fresh workers, so the variable reaches every render."""
+    presets = tmp_path / "presets"
+    presets.mkdir()
+    for src in serum2_preset_files:
+        (presets / Path(src).name).symlink_to(src)
+    temp = tmp_path / "temp"
+    temp.mkdir()
+    result = subprocess.run(
+        [sys.executable, "-m", "serum_render", str(presets), str(tmp_path / "out"),
+         "--serum2", serum2_plugin_path, "--workers", "2", *flags],
+        env={**os.environ, "TMPDIR": str(temp)}, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr[-800:]
+    assert len(list((tmp_path / "out").glob("*.wav"))) == len(serum2_preset_files)
+    assert list(temp.glob("serum_render_*")) == []

@@ -65,16 +65,19 @@ sf.write(str(out), audio.T, 44100, subtype="PCM_16")  # transpose!
 `.SerumPreset` files are cbor2 + zstandard wrappers around the raw JUCE
 state. `serum2_preset_loader.convert_preset_file(path)` returns the
 inner state as bytes; `load_state` takes a path, so the bytes go through
-a per-process tempfile:
+a temp folder that lasts only for the load:
 
 ```python
 from serum2_preset_loader import convert_preset_file
-state_path.write_bytes(convert_preset_file(str(preset_path)))
-synth.load_state(str(state_path))
+with tempfile.TemporaryDirectory(prefix="serum_render_") as tmp:
+    state_path = Path(tmp) / "state.bin"
+    state_path.write_bytes(convert_preset_file(str(preset_path)))
+    synth.load_state(str(state_path))
 ```
 
-Reuse one `state_path` per process (write_bytes overwrites); never share
-it across processes.
+`load_state` reads the file before it returns, so nothing needs to outlive it.
+A batch leaves no `serum_render_*` folder behind; only a process killed inside
+this block can.
 
 ## Job contract
 
