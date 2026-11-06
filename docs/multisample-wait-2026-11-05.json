@@ -11154,5 +11154,612 @@
     }
    }
   }
+ },
+ "proof": {
+  "path": "pool.iter_jobs_isolated (--deterministic), real conversion in every render, presets of a pass mixed and spread as in a batch",
+  "foreign_cores_note": "in these runs the figure also counts the proof's own serum_render.isolated renders, so outside load was lower than it says; the script no longer counts them",
+  "largest_presets_20_of_20": {
+   "default_wait": 10.0,
+   "sample_rate": 44100,
+   "renders_per_case": 20,
+   "settled_wait": 15.0,
+   "presets": 13,
+   "discarded_passes": [],
+   "stimuli": {
+    "note": {
+     "reference_machine": {
+      "load_average_1_5_15": [
+       3.9,
+       6.3,
+       9.0
+      ],
+      "swap_used_mb": 5194.06,
+      "busy_processes": {},
+      "foreign_cores_mean": 2.07,
+      "foreign_cores_max": 5.96,
+      "foreign_growth_mb": -1037.8,
+      "swap_growth_mb": 418.6
+     },
+     "reference_seconds": 127.3,
+     "workers": {
+      "7": {
+       "machine": {
+        "load_average_1_5_15": [
+         4.1,
+         6.2,
+         7.8
+        ],
+        "swap_used_mb": 6008.38,
+        "busy_processes": {},
+        "foreign_cores_mean": 3.0,
+        "foreign_cores_max": 7.25,
+        "foreign_growth_mb": -799.9,
+        "swap_growth_mb": 814.3
+       },
+       "seconds": 538.3,
+       "presets_all_equal": 13,
+       "failed": {},
+       "cases": {
+        "Factory/Loop/LOOP - On The Couch.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "2080a3f757b96a21"
+        },
+        "Factory/Piano/PN - Emotional Upright.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "3efce0b287a401a6"
+        },
+        "Factory/Piano/PN - Piano EDM.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "e0da5c8f1f144e34"
+        },
+        "Factory/Drumkit/KIT - Pitched Up Layer Kit.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "b7590d1fad688a2b"
+        },
+        "Factory/Piano/PN - Piano Space.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "e9a66902288bbdca"
+        },
+        "Factory/Piano/PN - Piano Classic Layer.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "075c730deb745792"
+        },
+        "Factory/Synth/SY - Dual PWM Poly.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "a760f7cff41381f8"
+        },
+        "Factory/Arp/ARP - Cosmic Lives Forever.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "d8f512388f88f12a"
+        },
+        "Splice/Ryan K Serum 2 Hard Dance Essentials Volume 1/FSS_RKS2HDE_Pad_Orchestra.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "062e946f36fe6c2e"
+        },
+        "Splice/Presets Girlfriend, tracey brakes for Serum 2/MO_TB_SY_Smiley_Stab.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "f26aee2d260e5c71"
+        },
+        "Splice/Serum 2 Essential Keys/SO_VK_Keys_Celeste_Releases.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "2ebad17871ed7def"
+        },
+        "Splice/Serum 2 Essential Keys/SO_VK_Piano_Upright_Felt_Lofi.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "6e2f105fd7a88190"
+        },
+        "Splice/Serum 2 Essential Keys/SO_VK_Lead_Tron_Flute.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "d60edcb7d8febdab"
+        }
+       }
+      },
+      "8": {
+       "machine": {
+        "load_average_1_5_15": [
+         7.1,
+         7.5,
+         7.9
+        ],
+        "swap_used_mb": 4659.06,
+        "busy_processes": {},
+        "foreign_cores_mean": 3.34,
+        "foreign_cores_max": 6.86,
+        "foreign_growth_mb": 1286.1,
+        "swap_growth_mb": -1349.3
+       },
+       "seconds": 491.5,
+       "presets_all_equal": 13,
+       "failed": {},
+       "cases": {
+        "Factory/Loop/LOOP - On The Couch.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "2080a3f757b96a21"
+        },
+        "Factory/Piano/PN - Emotional Upright.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "3efce0b287a401a6"
+        },
+        "Factory/Piano/PN - Piano EDM.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "e0da5c8f1f144e34"
+        },
+        "Factory/Drumkit/KIT - Pitched Up Layer Kit.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "b7590d1fad688a2b"
+        },
+        "Factory/Piano/PN - Piano Space.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "e9a66902288bbdca"
+        },
+        "Factory/Piano/PN - Piano Classic Layer.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "075c730deb745792"
+        },
+        "Factory/Synth/SY - Dual PWM Poly.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "a760f7cff41381f8"
+        },
+        "Factory/Arp/ARP - Cosmic Lives Forever.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "d8f512388f88f12a"
+        },
+        "Splice/Ryan K Serum 2 Hard Dance Essentials Volume 1/FSS_RKS2HDE_Pad_Orchestra.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "062e946f36fe6c2e"
+        },
+        "Splice/Presets Girlfriend, tracey brakes for Serum 2/MO_TB_SY_Smiley_Stab.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "f26aee2d260e5c71"
+        },
+        "Splice/Serum 2 Essential Keys/SO_VK_Keys_Celeste_Releases.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "2ebad17871ed7def"
+        },
+        "Splice/Serum 2 Essential Keys/SO_VK_Piano_Upright_Felt_Lofi.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "6e2f105fd7a88190"
+        },
+        "Splice/Serum 2 Essential Keys/SO_VK_Lead_Tron_Flute.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "d60edcb7d8febdab"
+        }
+       }
+      }
+     },
+     "references_not_settled": {}
+    },
+    "sweep": {
+     "reference_machine": {
+      "load_average_1_5_15": [
+       6.1,
+       8.0,
+       8.1
+      ],
+      "swap_used_mb": 4520.62,
+      "busy_processes": {},
+      "foreign_cores_mean": 3.41,
+      "foreign_cores_max": 6.32,
+      "foreign_growth_mb": 1338.1,
+      "swap_growth_mb": -138.4
+     },
+     "reference_seconds": 137.7,
+     "workers": {
+      "7": {
+       "machine": {
+        "load_average_1_5_15": [
+         8.6,
+         10.7,
+         10.0
+        ],
+        "swap_used_mb": 6169.56,
+        "busy_processes": {},
+        "foreign_cores_mean": 4.36,
+        "foreign_cores_max": 7.36,
+        "foreign_growth_mb": -872.8,
+        "swap_growth_mb": 1648.9
+       },
+       "seconds": 648.8,
+       "presets_all_equal": 13,
+       "failed": {},
+       "cases": {
+        "Factory/Loop/LOOP - On The Couch.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "6a48a0ecd0e5d066"
+        },
+        "Factory/Piano/PN - Emotional Upright.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "5c194b8a0b4f93b8"
+        },
+        "Factory/Piano/PN - Piano EDM.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "486952a5b17ff40d"
+        },
+        "Factory/Drumkit/KIT - Pitched Up Layer Kit.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "84f13f49f3a584c2"
+        },
+        "Factory/Piano/PN - Piano Space.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "af44037d5023eda2"
+        },
+        "Factory/Piano/PN - Piano Classic Layer.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "16390f43f40c1637"
+        },
+        "Factory/Synth/SY - Dual PWM Poly.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "9a25a1b15fe10359"
+        },
+        "Factory/Arp/ARP - Cosmic Lives Forever.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "e36be561e69a5792"
+        },
+        "Splice/Ryan K Serum 2 Hard Dance Essentials Volume 1/FSS_RKS2HDE_Pad_Orchestra.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "2535900fcdd5a7af"
+        },
+        "Splice/Presets Girlfriend, tracey brakes for Serum 2/MO_TB_SY_Smiley_Stab.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "1c85695796f8572d"
+        },
+        "Splice/Serum 2 Essential Keys/SO_VK_Keys_Celeste_Releases.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "e9215313c0d98238"
+        },
+        "Splice/Serum 2 Essential Keys/SO_VK_Piano_Upright_Felt_Lofi.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "44114444fed11ea5"
+        },
+        "Splice/Serum 2 Essential Keys/SO_VK_Lead_Tron_Flute.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "6e3c4d9e5c760e47"
+        }
+       }
+      },
+      "8": {
+       "machine": {
+        "load_average_1_5_15": [
+         9.4,
+         11.5,
+         10.9
+        ],
+        "swap_used_mb": 5023.75,
+        "busy_processes": {},
+        "foreign_cores_mean": 4.69,
+        "foreign_cores_max": 7.42,
+        "foreign_growth_mb": -166.3,
+        "swap_growth_mb": -1145.8
+       },
+       "seconds": 606.3,
+       "presets_all_equal": 13,
+       "failed": {},
+       "cases": {
+        "Factory/Loop/LOOP - On The Couch.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "6a48a0ecd0e5d066"
+        },
+        "Factory/Piano/PN - Emotional Upright.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "5c194b8a0b4f93b8"
+        },
+        "Factory/Piano/PN - Piano EDM.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "486952a5b17ff40d"
+        },
+        "Factory/Drumkit/KIT - Pitched Up Layer Kit.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "84f13f49f3a584c2"
+        },
+        "Factory/Piano/PN - Piano Space.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "af44037d5023eda2"
+        },
+        "Factory/Piano/PN - Piano Classic Layer.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "16390f43f40c1637"
+        },
+        "Factory/Synth/SY - Dual PWM Poly.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "9a25a1b15fe10359"
+        },
+        "Factory/Arp/ARP - Cosmic Lives Forever.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "e36be561e69a5792"
+        },
+        "Splice/Ryan K Serum 2 Hard Dance Essentials Volume 1/FSS_RKS2HDE_Pad_Orchestra.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "2535900fcdd5a7af"
+        },
+        "Splice/Presets Girlfriend, tracey brakes for Serum 2/MO_TB_SY_Smiley_Stab.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "1c85695796f8572d"
+        },
+        "Splice/Serum 2 Essential Keys/SO_VK_Keys_Celeste_Releases.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "e9215313c0d98238"
+        },
+        "Splice/Serum 2 Essential Keys/SO_VK_Piano_Upright_Felt_Lofi.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "44114444fed11ea5"
+        },
+        "Splice/Serum 2 Essential Keys/SO_VK_Lead_Tron_Flute.SerumPreset": {
+         "equal": 20,
+         "of": 20,
+         "silent": 0,
+         "reference": "6e3c4d9e5c760e47"
+        }
+       }
+      }
+     },
+     "references_not_settled": {}
+    }
+   }
+  },
+  "all_multisample_presets_3_of_3": {
+   "note_at_7_workers": {
+    "default_wait": 10.0,
+    "sample_rate": 44100,
+    "renders_per_case": 3,
+    "settled_wait": 15.0,
+    "presets": 186,
+    "discarded_passes": [],
+    "stimuli": {
+     "note": {
+      "reference_machine": {
+       "load_average_1_5_15": [
+        3.4,
+        4.1,
+        5.6
+       ],
+       "swap_used_mb": 3988.5,
+       "busy_processes": {},
+       "foreign_cores_mean": 1.39,
+       "foreign_cores_max": 4.19,
+       "foreign_growth_mb": 1380.6,
+       "swap_growth_mb": -1011.2
+      },
+      "reference_seconds": 1320.6,
+      "workers": {
+       "7": {
+        "machine": {
+         "load_average_1_5_15": [
+          3.6,
+          4.3,
+          4.9
+         ],
+         "swap_used_mb": 3940.5,
+         "busy_processes": {},
+         "foreign_cores_mean": 1.23,
+         "foreign_cores_max": 3.99,
+         "foreign_growth_mb": -275.6,
+         "swap_growth_mb": -48.0
+        },
+        "seconds": 920.4,
+        "presets_all_equal": 186,
+        "failed": {},
+        "cases": null
+       }
+      },
+      "references_not_settled": {}
+     }
+    }
+   },
+   "sweep_at_8_workers": {
+    "default_wait": 10.0,
+    "sample_rate": 44100,
+    "renders_per_case": 3,
+    "settled_wait": 15.0,
+    "presets": 186,
+    "discarded_passes": [],
+    "stimuli": {
+     "sweep": {
+      "reference_machine": {
+       "load_average_1_5_15": [
+        3.8,
+        4.6,
+        4.8
+       ],
+       "swap_used_mb": 3908.5,
+       "busy_processes": {},
+       "foreign_cores_mean": 1.22,
+       "foreign_cores_max": 3.4,
+       "foreign_growth_mb": -7.2,
+       "swap_growth_mb": -32.0
+      },
+      "reference_seconds": 1212.8,
+      "workers": {
+       "8": {
+        "machine": {
+         "load_average_1_5_15": [
+          4.1,
+          4.9,
+          5.1
+         ],
+         "swap_used_mb": 3860.5,
+         "busy_processes": {},
+         "foreign_cores_mean": 1.23,
+         "foreign_cores_max": 3.02,
+         "foreign_growth_mb": -320.9,
+         "swap_growth_mb": -48.0
+        },
+        "seconds": 869.0,
+        "presets_all_equal": 186,
+        "failed": {},
+        "cases": null
+       }
+      },
+      "references_not_settled": {}
+     }
+    }
+   }
+  }
+ },
+ "against_0_7_0": {
+  "builds": "0.7.0 from PyPI against the 0.7.1 working tree, both on the same dawdreamer and loader, run from a neutral folder",
+  "byte_identical_deterministic_npy": {
+   "serum2_no_multisample": {
+    "identical": 592,
+    "of": 592
+   },
+   "serum1_first_20_fxp": {
+    "identical": 20,
+    "of": 20
+   }
+  },
+  "seconds_deterministic_no_multisample_7_workers": {
+   "0.7.0": 81.003,
+   "0.7.1": 84.436,
+   "note": "the 0.7.1 difference is the decode that reads the oscillator types"
+  },
+  "full_library_warm_pool_7_workers": {
+   "0.7.0": {
+    "elapsed_seconds": 116.832,
+    "ok": 778,
+    "failed": 0,
+    "silent": [
+     "Factory/Drumkit/KIT - Auxillary Kit.SerumPreset",
+     "Factory/Drumkit/KIT - Pitched Up Layer Kit.SerumPreset",
+     "Factory/Drumkit/KIT - VTL Heavy Drums.SerumPreset",
+     "Factory/Piano/PN - Piano Concert Hall.SerumPreset",
+     "Factory/Piano/PN - Piano Upright.SerumPreset",
+     "Factory/Piano/PN - Piano and Strings.SerumPreset"
+    ]
+   },
+   "0.7.1": {
+    "elapsed_seconds": 326.272,
+    "ok": 778,
+    "failed": 0,
+    "silent": [
+     "Factory/Drumkit/KIT - Auxillary Kit.SerumPreset"
+    ]
+   },
+   "upper_bound_added_seconds": 265.7
+  },
+  "still_silent_note": "KIT - Auxillary Kit is silent at note 48 with a 15 s wait too and sounds at note 60: an unmapped key, not the race",
+  "warm_pool_note": "warm-pool renders still vary with worker history (KNOWN_ISSUES.md), so identity is claimed only for fresh instances",
+  "machine_log": [
+   "00:02:36 start nonms_old load { 3.59 4.74 4.98 } used = 3852.50M",
+   "nonms_old exit 0 seconds 82",
+   "00:03:58 end nonms_old load { 15.42 8.43 6.38 } used = 3852.50M",
+   "00:03:58 start nonms_new load { 15.42 8.43 6.38 } used = 3852.50M",
+   "nonms_new exit 0 seconds 85",
+   "00:05:23 end nonms_new load { 19.68 11.99 7.96 } used = 3852.50M",
+   "00:05:23 start s1_old load { 19.68 11.99 7.96 } used = 3852.50M",
+   "s1_old exit 0 seconds 2",
+   "00:05:25 end s1_old load { 18.34 11.84 7.93 } used = 3852.50M",
+   "00:05:25 start s1_new load { 18.34 11.84 7.93 } used = 3852.50M",
+   "s1_new exit 0 seconds 3",
+   "00:05:28 end s1_new load { 18.34 11.84 7.93 } used = 3852.50M",
+   "00:05:28 start all_old load { 18.34 11.84 7.93 } used = 3852.50M",
+   "all_old exit 0 seconds 117",
+   "00:07:25 end all_old load { 19.23 14.54 9.52 } used = 5026.88M",
+   "00:07:25 start all_new load { 19.23 14.54 9.52 } used = 5026.88M",
+   "all_new exit 0 seconds 327",
+   "00:12:52 end all_new load { 4.20 7.83 7.88 } used = 5213.44M",
+   "finished"
+  ]
  }
 }
