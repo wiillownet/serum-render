@@ -14,6 +14,7 @@ import logging
 import os
 import tempfile
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -58,6 +59,19 @@ def check_serum2_loader() -> None:
             "keep MPE on in the state and let a bad FX entry crash Serum. Run "
             "`pip install 'serum2-preset-loader>=0.6,<0.7'`"
         )
+
+
+def uses_multisample(tree: dict) -> bool:
+    """True when a decoded preset tree has an oscillator of type MultiSample.
+
+    Reads each oscillator's type. Every oscillator carries a MultiSampleOsc
+    subkey whatever its type, so the subkey says nothing."""
+    for key, module in tree.items():
+        if key.startswith("Oscillator") and isinstance(module, dict):
+            params = module.get("plainParams")
+            if isinstance(params, dict) and params.get("kParamType") == "kOsc_MultiSample":
+                return True
+    return False
 
 
 def error_text(exc: BaseException) -> str:
@@ -172,8 +186,18 @@ class EngineHost:
             versions: dict = {"preset_version": None}
             fe.synth.load_preset(job.preset_path)
         else:
-            from serum2_preset_loader import convert_preset_file, read_preset_metadata
+            from serum2_preset_loader import (
+                convert_preset_file,
+                decode_preset_file,
+                read_preset_metadata,
+            )
 
+            # Decoded separately and dropped before converting: a sample-based
+            # preset's tree is ~2 GB, and holding it through convert_preset_tree
+            # costs more peak memory than this second decode does.
+            wait = job.multisample_wait > 0 and uses_multisample(
+                decode_preset_file(job.preset_path)[1]
+            )
             state = convert_preset_file(job.preset_path, keep_mpe=job.keep_mpe)
             # Provenance must not cost a render: an unreadable version is
             # logged and recorded as an error field, and the render goes on.
@@ -196,6 +220,12 @@ class EngineHost:
                 state_path.write_bytes(state)
                 del state
                 fe.synth.load_state(str(state_path))
+            # Serum loads MultiSample audio on background threads and nothing
+            # waits for it: a note-on before a region's data is ready plays
+            # nothing for that region. A render would not help, the plugin's
+            # threads need wall-clock time (KNOWN_ISSUES.md).
+            if wait:
+                time.sleep(job.multisample_wait)
 
         if job.midi_path is not None:
             fe.synth.load_midi(

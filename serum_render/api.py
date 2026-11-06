@@ -73,6 +73,7 @@ def _build_job(
         ),
         midi_duration=midi_duration,
         keep_mpe=config.keep_mpe,
+        multisample_wait=config.multisample_wait,
     )
 
 

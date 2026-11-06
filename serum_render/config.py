@@ -13,6 +13,11 @@ from .formats import PresetFormat, suffix_for
 # conservative for 24/32f bit depths.
 SILENCE_EPS = 3.16e-5
 
+# Seconds to wait between loading a Serum 2 preset that uses MultiSample and
+# its first note, so the plugin's background sample load can finish. Chosen
+# from docs/multisample-wait-2026-11-05.json; see docs/decisions.md.
+DEFAULT_MULTISAMPLE_WAIT = 10.0
+
 
 # Standard Serum install locations, used as fallbacks when no explicit
 # plugin path is given. INVARIANT: the SERUM1 entry must be a VST2 binary —
@@ -198,6 +203,9 @@ class RenderConfig:
     # MPE is off as in a fresh Serum instance. For MIDI files written for
     # MPE; a preset routing member-channel pressure sounds different with it.
     keep_mpe: bool = False
+    # Serum 2 only: wall-clock seconds between the state load and the first
+    # note, for presets with a MultiSample oscillator. 0 turns the wait off.
+    multisample_wait: float = DEFAULT_MULTISAMPLE_WAIT
 
     def __post_init__(self) -> None:
         # Cheap shape/range checks only — no disk I/O. Path existence is
@@ -223,6 +231,10 @@ class RenderConfig:
             raise ValueError(f"duration must be > 0, got {self.duration}")
         if self.tail < 0:
             raise ValueError(f"tail must be >= 0, got {self.tail}")
+        if not 0 <= self.multisample_wait < float("inf"):
+            raise ValueError(
+                f"multisample_wait must be >= 0 and finite, got {self.multisample_wait}"
+            )
 
     def plugin_path_for(self, fmt: PresetFormat) -> Path | None:
         return {
