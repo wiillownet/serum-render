@@ -222,7 +222,7 @@ python3.12 -m venv .venv
     --serum2-preset-dir  "$HOME/Documents/Serum 2 Presets/Pads/"
 ```
 
-Env vars `SERUM1_PLUGIN_PATH`, `SERUM2_PLUGIN_PATH`, `SERUM1_PRESET_DIR`, `SERUM2_PRESET_DIR` work as flag alternatives.
+Env vars `SERUM1_PLUGIN_PATH`, `SERUM2_PLUGIN_PATH`, `SERUM1_PRESET_DIR`, `SERUM2_PRESET_DIR` work as flag alternatives. `--serum2-multisample-preset` (`SERUM2_MULTISAMPLE_PRESET`) names a preset for the MultiSample wait check; the factory `PN - Piano EDM` needs a wait.
 
 ## License
 
