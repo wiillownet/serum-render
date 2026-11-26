@@ -50,14 +50,14 @@ def check_serum2_loader() -> None:
     except PackageNotFoundError:
         raise LoaderVersionError(
             "serum2-preset-loader is not installed; run "
-            "`pip install 'serum2-preset-loader>=0.6,<0.7'`"
+            "`pip install 'serum2-preset-loader>=0.6,<0.8'`"
         ) from None
     m = re.match(r"(\d+)\.(\d+)", found)
     if m is None or (int(m[1]), int(m[2])) < MIN_SERUM2_LOADER:
         raise LoaderVersionError(
             f"serum2-preset-loader {found} is too old: versions before 0.6 "
             "keep MPE on in the state and let a bad FX entry crash Serum. Run "
-            "`pip install 'serum2-preset-loader>=0.6,<0.7'`"
+            "`pip install 'serum2-preset-loader>=0.6,<0.8'`"
         )
 
 
