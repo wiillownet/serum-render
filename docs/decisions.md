@@ -209,3 +209,11 @@ Decision: The MultiSample race in KNOWN_ISSUES.md and the 2026-11-06 entry now d
 Reason: This repo's claims about Serum should rest on what a host can observe, and a citation the reader can't open proves nothing to them. The reruns used Serum 2.1.5 through serum-render itself: `PN - Piano EDM` rendered the same wrong way 5 of 5 times without a wait and the same settled way 3 of 3 times with the default; with `--keep-mpe` as the only difference, 100 single notes and 28 one-channel MIDI renders did not change and 6 of 28 member-channel MIDI renders did. The loader's matching change backs its FX and proxy rules with its own host test.
 Alternatives considered: Rewriting git history to drop the citations from old commits (breaks every clone, fork and release tag, and copies already made keep the text). Leaving the text as it was (keeps a mechanism no host can observe and citations a reader can't open, with nothing they can check).
 Revisit if: a host path to Serum's browser load becomes available to settle the editor-load claim, or a Serum update makes the MultiSample smoke test fail.
+
+## 2026-11-25 — Allow serum2-preset-loader 0.7
+Status: Accepted
+Confidence: High
+Decision: The dependency widens from `>=0.6,<0.7` to `>=0.6,<0.8`, and both `LoaderVersionError` messages name the new range. The floor stays 0.6. `test_pyproject_pin_matches_the_version_check` now checks only that the pyproject floor equals `MIN_SERUM2_LOADER`, since the cap can now sit more than one minor above it. 0.7.2, a patch as with the 2026-10-25 widening to 0.3.
+Reason: Loader 0.7.0 is a minor because it drops Python 3.9, which serum-render never supported (it requires 3.11). Its other changes since 0.6.1 are docs, an opt-in host test, and the `InvalidFXTypeError` message now saying "can crash"; `convert_preset_file` is unchanged. The suite passes against 0.7.0. The cap stays one minor ahead of the newest loader, per the versioning policy.
+Alternatives considered: Raising the floor to 0.7 too (forces an upgrade that changes nothing serum-render uses, and leaves 0.6 installs refused for no reason). Leaving the cap at `<0.7` (new installs keep resolving to 0.6.1 and miss later loader fixes).
+Revisit if: a loader 0.7.x changes `convert_preset_file` output, or loader 0.8 ships.

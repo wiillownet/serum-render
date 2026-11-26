@@ -108,7 +108,7 @@ def test_loader_version_messages_name_the_pin(monkeypatch):
     """Both messages give the install command the pin in pyproject allows."""
     from importlib.metadata import PackageNotFoundError
 
-    pin = "serum2-preset-loader>=0.6,<0.7"
+    pin = "serum2-preset-loader>=0.6,<0.8"
     monkeypatch.setattr("importlib.metadata.version", lambda name: "0.5.2")
     with pytest.raises(engine.LoaderVersionError, match="0.5.2 is too old") as old:
         engine.check_serum2_loader()
@@ -124,14 +124,16 @@ def test_loader_version_messages_name_the_pin(monkeypatch):
 
 
 def test_pyproject_pin_matches_the_version_check():
-    """The floor in the code and the one in pyproject move together."""
+    """The floor in the code and the one in pyproject move together. The cap
+    is one minor ahead of the newest loader, so it can sit more than one minor
+    above the floor."""
     import tomllib
     from pathlib import Path
 
     root = Path(engine.__file__).resolve().parent.parent
     deps = tomllib.loads((root / "pyproject.toml").read_text())["project"]["dependencies"]
     major, minor = engine.MIN_SERUM2_LOADER
-    assert f"serum2-preset-loader>={major}.{minor},<{major}.{minor + 1}" in deps
+    assert any(d.startswith(f"serum2-preset-loader>={major}.{minor},<") for d in deps)
 
 
 # ---- real loader through the render core --------------------------------
