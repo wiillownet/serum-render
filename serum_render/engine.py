@@ -38,8 +38,8 @@ def check_serum2_loader() -> None:
     """Refuse serum2-preset-loader older than 0.6. Versions before 0.4 stamp
     every converted state as 2.1.4 / format 10.0, so Serum skips its own
     migration and presets saved before 2.1.4 render wrong; versions before
-    0.6 keep the file's MPE keys in the state, where Serum's editor load
-    leaves them out, and pass bad FX entries through to Serum, which crashes.
+    0.6 keep the file's MPE keys in the state, where a fresh Serum instance
+    has MPE off, and pass bad FX entries through to Serum, which can crash.
     Reads the installed version from metadata, so the package is not
     imported."""
     import re

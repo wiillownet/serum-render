@@ -190,3 +190,21 @@ def test_cli_batch_leaves_no_temp_folder(serum2_plugin_path, serum2_preset_files
     assert result.returncode == 0, result.stderr[-800:]
     assert len(list((tmp_path / "out").glob("*.wav"))) == len(serum2_preset_files)
     assert list(temp.glob("serum_render_*")) == []
+
+
+@pytest.mark.slow
+def test_multisample_wait_settles_a_fresh_render(serum2_plugin_path, serum2_multisample_preset):
+    """Black-box check behind --multisample-wait: in fresh processes, the
+    default wait gives the same render every time, and no wait gives a
+    different one, because Serum's state load returns before the samples
+    are ready."""
+    def render(wait: float) -> np.ndarray:
+        config = RenderConfig(serum2_plugin_path=serum2_plugin_path, duration=0.5, tail=0.5,
+                              deterministic=True, multisample_wait=wait)
+        with ParallelRenderer(config, workers=1) as renderer:
+            return renderer.render_batch([serum2_multisample_preset])[serum2_multisample_preset]
+
+    settled, again, unsettled = render(10.0), render(10.0), render(0.0)
+    assert (settled == again).all(), "settled renders differ"
+    assert np.max(np.abs(settled)) > SILENCE_EPS, "silent output"
+    assert not (unsettled == settled).all(), "no wait gave the settled render; pick a preset that needs one"

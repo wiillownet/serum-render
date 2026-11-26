@@ -39,6 +39,12 @@ def pytest_addoption(parser):
         help="Directory containing .fxp presets for integration tests.",
     )
     parser.addoption(
+        "--serum2-multisample-preset",
+        action="store",
+        default=None,
+        help="A .SerumPreset whose MultiSample oscillator needs a wait after the load.",
+    )
+    parser.addoption(
         "--serum2-preset-dir",
         action="store",
         default=None,
@@ -90,3 +96,10 @@ def serum2_preset_files(request) -> list[str]:
     return _gated_presets(
         request, "--serum2-preset-dir", "SERUM2_PRESET_DIR", "*.SerumPreset"
     )
+
+
+@pytest.fixture
+def serum2_multisample_preset(request) -> str:
+    """A `.SerumPreset` with a MultiSample oscillator that needs a wait after
+    the load (factory `PN - Piano EDM` does). Skips if unset."""
+    return _gated_path(request, "--serum2-multisample-preset", "SERUM2_MULTISAMPLE_PRESET")
